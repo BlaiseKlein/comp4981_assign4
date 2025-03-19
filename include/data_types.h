@@ -5,6 +5,7 @@
 #ifndef DATA_TYPES_H
 #define DATA_TYPES_H
 #include <netinet/in.h>
+#include <sys/poll.h>
 #include <sys/types.h>
 
 #define DOMAINSOCKET "/tmp/domainsock"
@@ -17,8 +18,10 @@ struct network_state
     socklen_t                receive_addr_len;
     in_port_t                receive_port;
     int                      next_client_fd;
-    int                      domain_fd;
+    int                      domain_fd[2];
     pid_t                    child_pids[CHILD_COUNT];
+    struct pollfd           *poll_fds;
+    int                     *poll_clients;
 };
 
 struct arguments
@@ -35,6 +38,7 @@ struct context
     int                  err;
     char               **paths;
     int                  paths_len;
+    pthread_t            watcher_thread;
 };
 
 #endif    // DATA_TYPES_H

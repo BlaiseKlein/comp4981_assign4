@@ -6,19 +6,21 @@
 #include "data_types.h"
 #include <errno.h>
 #include <netinet/in.h>
+#include <poll.h>
 #include <pthread.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/stat.h>
 #include <sys/un.h>
-#include <sys/wait.h>
 #include <unistd.h>
 
 #define BASE_TEN 10
+#define REQUIRED_SOCKET_COUNT 2
 
-static void send_fd(int socket, int fd)
+void send_fd(int socket, int fd)
 {
     struct msghdr   msg = {0};
     struct iovec    io;
@@ -322,52 +324,278 @@ int setup_domain_socket(struct context *ctx)
     return 0;
 }
 
-int await_client_connection(struct context *ctx)
+_Noreturn int await_client_connection(struct context *ctx)
 {
+    // TODO make select or poll, handle the client, pass the domain to children, and the currently working client sockets (keep alive)
+
+    nfds_t max_clients    = 0;
+    ctx->network.poll_fds = initialize_pollfds(ctx->network.receive_fd, ctx->network.domain_fd[0], &ctx->network.poll_clients);
+    // TODO Load domain socket into poll fds
     while(1)
     {
-        int result;
-        result = accept(ctx->network.receive_fd, (struct sockaddr *)ctx->network.receive_addr, &ctx->network.receive_addr_len);
-        if(result < 0)
+        int activity;
+
+        activity = poll(ctx->network.poll_fds, max_clients + REQUIRED_SOCKET_COUNT, -1);
+
+        if(activity < 0)
         {
-            printf("%d\n", result);
-            printf("%d\n", errno);
-            close(ctx->network.receive_fd);
-            return -1;
+            perror("Poll error");
+            exit(EXIT_FAILURE);
         }
 
-        ctx->network.next_client_fd = result;
-        result                      = forward_request(ctx);
-        if(result < 0)
+        if(ctx->network.poll_fds[0].fd != -1 && (ctx->network.poll_fds[0].revents & POLLIN))
         {
-            close(ctx->network.receive_fd);
-            return -1;
+            // Handle new client connections
+            handle_new_connection(ctx->network.receive_fd, &ctx->network.poll_clients, &max_clients, &ctx->network.poll_fds);
+        }
+
+        if(ctx->network.poll_fds[1].fd != -1 && (ctx->network.poll_fds[1].revents & POLLIN))
+        {
+            // TODO Handle domain socket input, will be an fd that should be toggled
+            int         result;
+            struct stat my_fd;
+            struct stat target_fd;
+            int         new_fd = 0;
+            // result     = read(ctx->network.poll_fds[1].fd, &new_fd, 1);
+            new_fd = recv_fd(ctx->network.poll_fds[1].fd);
+            if(new_fd < 0)
+            {
+                perror("Read error");
+                exit(EXIT_FAILURE);
+            }
+
+            result = fstat(new_fd, &target_fd);
+            if(result < 0)
+            {
+                perror("Fstat error");
+                exit(EXIT_FAILURE);
+            }
+
+            for(nfds_t i = REQUIRED_SOCKET_COUNT; i < max_clients + REQUIRED_SOCKET_COUNT; i++)
+            {
+                result = fstat(ctx->network.poll_fds[i].fd, &my_fd);
+                if(result < 0)
+                {
+                    perror("Fstat error");
+                    exit(EXIT_FAILURE);
+                }
+
+                if(my_fd.st_ino == target_fd.st_ino)
+                {
+                    // Toggle FD on
+                    ctx->network.poll_fds[i].events = POLLIN;
+                    close(new_fd);
+                }
+            }
+        }
+
+        for(nfds_t i = REQUIRED_SOCKET_COUNT; i < max_clients + REQUIRED_SOCKET_COUNT; i++)
+        {
+            if(ctx->network.poll_fds[i].fd != -1 && (ctx->network.poll_fds[i].revents & POLLIN))
+            {
+                // forward working fd to domain socket
+                send_fd(ctx->network.domain_fd[0], ctx->network.poll_fds[i].fd);
+                // toggle fd flag so that it can't be read from
+                ctx->network.poll_fds[i].events = 0;
+            }
+            if(ctx->network.poll_fds[i].fd != -1 && (ctx->network.poll_fds[i].revents & POLLHUP))
+            {
+                // fd cleanup
+                ctx->network.poll_fds[i].events = 0;
+                remove_poll_client((int)i, &ctx->network.poll_clients, &max_clients, &ctx->network.poll_fds);
+            }
+        }
+    }
+    free(ctx->network.poll_fds);
+}
+
+struct pollfd *initialize_pollfds(int sockfd, int domain_fd, int **client_sockets)
+{
+    struct pollfd *fds;
+
+    *client_sockets = NULL;
+
+    fds = (struct pollfd *)malloc((REQUIRED_SOCKET_COUNT) * sizeof(struct pollfd));
+
+    if(fds == NULL)
+    {
+        perror("malloc");
+        exit(EXIT_FAILURE);
+    }
+
+    fds[0].fd     = sockfd;
+    fds[0].events = POLLIN;
+    fds[1].fd     = domain_fd;
+    fds[1].events = POLLIN;
+
+    return fds;
+}
+
+void handle_new_connection(int sockfd, int **client_sockets, nfds_t *max_clients, struct pollfd **fds)
+{
+    if((*fds)[0].revents & POLLIN)
+    {
+        socklen_t          addrlen;
+        int                new_socket;
+        int               *temp;
+        struct sockaddr_un addr;
+
+        addrlen    = sizeof(addr);
+        new_socket = accept(sockfd, (struct sockaddr *)&addr, &addrlen);
+
+        if(new_socket == -1)
+        {
+            perror("Accept error");
+            exit(EXIT_FAILURE);
+        }
+
+        (*max_clients)++;
+        temp = (int *)realloc(*client_sockets, sizeof(int) * (*max_clients));
+
+        if(temp == NULL)
+        {
+            perror("realloc");
+            free(*client_sockets);
+            exit(EXIT_FAILURE);
+        }
+        else
+        {
+            struct pollfd *new_fds;
+            *client_sockets                       = temp;
+            (*client_sockets)[(*max_clients) - 1] = new_socket;
+
+            new_fds = (struct pollfd *)realloc(*fds, ((*max_clients) + REQUIRED_SOCKET_COUNT) * sizeof(struct pollfd));
+            if(new_fds == NULL)
+            {
+                perror("realloc");
+                free(*client_sockets);
+                exit(EXIT_FAILURE);
+            }
+            else
+            {
+                *fds                                                    = new_fds;
+                (*fds)[*max_clients + REQUIRED_SOCKET_COUNT - 1].fd     = new_socket;
+                (*fds)[*max_clients + REQUIRED_SOCKET_COUNT - 1].events = POLLIN;
+            }
         }
     }
 }
 
-int forward_request(const struct context *ctx)
+void remove_poll_client(int poll_index, int **client_sockets, nfds_t *max_clients, struct pollfd **fds)
+{
+    int client_index = poll_index - REQUIRED_SOCKET_COUNT;
+    if((nfds_t)client_index >= *max_clients || poll_index < REQUIRED_SOCKET_COUNT)
+    {
+        perror("Poll index out of range");
+        return;
+    }
+
+    close((*fds)[poll_index].fd);
+    (*fds)[poll_index].fd           = -1;
+    (*fds)[poll_index].events       = 0;
+    (*fds)[poll_index].revents      = 0;
+    (*client_sockets)[client_index] = -1;
+
+    (*max_clients)--;
+    if(*max_clients == 0)
+    {
+        free(*client_sockets);
+        *client_sockets = NULL;
+        return;
+    }
+
+    if((nfds_t)client_index == (*max_clients))
+    {    // Handle if the client index is the last one, realloc with -1 size
+        int *temp;
+        temp = (int *)realloc(*client_sockets, sizeof(int) * (*max_clients));
+
+        if(temp == NULL)
+        {
+            perror("realloc");
+            free(*client_sockets);
+            exit(EXIT_FAILURE);
+        }
+        else
+        {
+            struct pollfd *new_fds;
+            *client_sockets = temp;
+
+            new_fds = (struct pollfd *)realloc(*fds, ((*max_clients) + REQUIRED_SOCKET_COUNT) * sizeof(struct pollfd));
+            if(new_fds == NULL)
+            {
+                perror("realloc");
+                free(*client_sockets);
+                exit(EXIT_FAILURE);
+            }
+            *fds = new_fds;
+        }
+    }
+    else
+    {    // Handle if the client index is not the last one, replace it with the last one and realloc
+
+        int           swap;
+        struct pollfd poll_swap;
+        int          *temp;
+
+        // Swap client_sockets
+        swap                            = (*client_sockets)[*max_clients];
+        (*client_sockets)[*max_clients] = (*client_sockets)[client_index];
+        (*client_sockets)[client_index] = swap;
+
+        // Swap pollfds
+        poll_swap                                    = (*fds)[*max_clients + REQUIRED_SOCKET_COUNT];
+        (*fds)[*max_clients + REQUIRED_SOCKET_COUNT] = (*fds)[poll_index];
+        (*fds)[poll_index]                           = poll_swap;
+
+        temp = (int *)realloc(*client_sockets, sizeof(int) * (*max_clients));
+
+        if(temp == NULL)
+        {
+            perror("realloc");
+            free(*client_sockets);
+            exit(EXIT_FAILURE);
+        }
+        else
+        {
+            struct pollfd *new_fds;
+            *client_sockets = temp;
+
+            new_fds = (struct pollfd *)realloc(*fds, ((*max_clients) + REQUIRED_SOCKET_COUNT) * sizeof(struct pollfd));
+            if(new_fds == NULL)
+            {
+                perror("realloc");
+                free(*client_sockets);
+                exit(EXIT_FAILURE);
+            }
+            *fds = new_fds;
+        }
+    }
+}
+
+int recv_fd(int socket)
 {
     struct msghdr   msg = {0};
     struct iovec    io;
-    char            buf[1] = {0};
+    char            buf[1];
     struct cmsghdr *cmsg;
     char            control[CMSG_SPACE(sizeof(int))];
+    int             fd;
     io.iov_base        = buf;
     io.iov_len         = sizeof(buf);
     msg.msg_iov        = &io;
     msg.msg_iovlen     = 1;
     msg.msg_control    = control;
     msg.msg_controllen = sizeof(control);
-    cmsg               = CMSG_FIRSTHDR(&msg);
-    cmsg->cmsg_level   = SOL_SOCKET;
-    cmsg->cmsg_type    = SCM_RIGHTS;
-    cmsg->cmsg_len     = CMSG_LEN(sizeof(int));
-    memcpy(CMSG_DATA(cmsg), &ctx->network.next_client_fd, sizeof(int));
-    if(sendmsg(ctx->network.domain_fd, &msg, 0) < 0)
+    if(recvmsg(socket, &msg, 0) < 0)
     {
-        perror("sendmsg");
-        return -1;
+        perror("recvmsg");
+        exit(EXIT_FAILURE);
     }
-    return 0;
+    cmsg = CMSG_FIRSTHDR(&msg);
+    if(cmsg && cmsg->cmsg_level == SOL_SOCKET && cmsg->cmsg_type == SCM_RIGHTS)
+    {
+        memcpy(&fd, CMSG_DATA(cmsg), sizeof(int));
+        return fd;
+    }
+    return -1;
 }

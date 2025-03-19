@@ -7,7 +7,7 @@
 
 #include "data_types.h"
 
-int  setup_children(struct context *ctx);
-void startup_child(struct context *ctx);
+int            setup_children(struct context *ctx);
+_Noreturn void startup_child(struct context *ctx);
 
 #endif    // REQ_HANDLER_H
