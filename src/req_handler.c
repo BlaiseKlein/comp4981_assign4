@@ -29,16 +29,19 @@ _Noreturn void startup_child(struct context *ctx)
 
     while(1)
     {
-        char buf[1];
+        char buf[2];
         int  err                    = 0;
+        buf[1]                      = '\0';
         ctx->network.next_client_fd = recv_fd(ctx->network.domain_fd[1]);
-        fprintf(stdout, "Client fd: %d\n", ctx->network.next_client_fd);
+        fprintf(stdout, "Client fd: %d\t", ctx->network.next_client_fd);
         send_fd(ctx->network.domain_fd[1], ctx->network.next_client_fd);
+        // TODO Replace read_fully with http functionality
         read_fully(ctx->network.next_client_fd, buf, 1, &err);
         if(err < 0)
         {
             ctx->err = err;
         }
+        fprintf(stdout, "Output: %s\n", buf);
         close(ctx->network.next_client_fd);
     }
 }

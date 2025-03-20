@@ -383,7 +383,7 @@ _Noreturn int await_client_connection(struct context *ctx)
                 if(my_fd.st_ino == target_fd.st_ino)
                 {
                     // Toggle FD on
-                    ctx->network.poll_fds[i].events = POLLIN;
+                    ctx->network.poll_fds[i].events = POLLIN + POLLRDHUP + POLLHUP;
                     close(new_fd);
                 }
             }
@@ -391,6 +391,8 @@ _Noreturn int await_client_connection(struct context *ctx)
 
         for(nfds_t i = REQUIRED_SOCKET_COUNT; i < max_clients + REQUIRED_SOCKET_COUNT; i++)
         {
+            ssize_t result;
+            char    buf[1];
             if(ctx->network.poll_fds[i].fd != -1 && (ctx->network.poll_fds[i].revents & POLLIN))
             {
                 // forward working fd to domain socket
@@ -398,12 +400,19 @@ _Noreturn int await_client_connection(struct context *ctx)
                 // toggle fd flag so that it can't be read from
                 ctx->network.poll_fds[i].events = 0;
             }
-            if(ctx->network.poll_fds[i].fd != -1 && (ctx->network.poll_fds[i].revents & POLLHUP))
+            if(ctx->network.poll_fds[i].fd != -1 && (ctx->network.poll_fds[i].revents & POLLRDHUP))
             {
                 // fd cleanup
                 ctx->network.poll_fds[i].events = 0;
                 remove_poll_client((int)i, &ctx->network.poll_clients, &max_clients, &ctx->network.poll_fds);
             }
+            result = recv(ctx->network.poll_fds[i].fd, &buf, 1, MSG_PEEK | MSG_DONTWAIT);
+            if(errno == ECONNRESET || errno == ENOTCONN || result == 0)
+            {
+                ctx->network.poll_fds[i].events = 0;
+                remove_poll_client((int)i, &ctx->network.poll_clients, &max_clients, &ctx->network.poll_fds);
+            }
+            errno = 0;
         }
     }
     free(ctx->network.poll_fds);
@@ -475,7 +484,7 @@ void handle_new_connection(int sockfd, int **client_sockets, nfds_t *max_clients
             {
                 *fds                                                    = new_fds;
                 (*fds)[*max_clients + REQUIRED_SOCKET_COUNT - 1].fd     = new_socket;
-                (*fds)[*max_clients + REQUIRED_SOCKET_COUNT - 1].events = POLLIN;
+                (*fds)[*max_clients + REQUIRED_SOCKET_COUNT - 1].events = POLLIN + POLLRDHUP + POLLHUP;
             }
         }
     }
