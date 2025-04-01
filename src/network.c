@@ -309,28 +309,23 @@ int setup_socket(struct context *ctx)
 
 int setup_domain_socket(struct context *ctx)
 {
-    struct sockaddr_un *un_addr;
-
-    memset(ctx->network.receive_addr, 0, sizeof(*ctx->network.receive_addr));
-    un_addr                              = (struct sockaddr_un *)ctx->network.receive_addr;
-    ctx->network.receive_addr->ss_family = AF_UNIX;
-    strncpy(un_addr->sun_path, DOMAINSOCKET, sizeof(un_addr->sun_path) - 1);
-    if(errno != 0)
+    if(socketpair(AF_UNIX, SOCK_STREAM, 0, ctx->network.domain_fd) == -1)
     {
+        perror("Error creating socket pair");
+        ctx->err = -1;
         return -1;
     }
-    un_addr->sun_path[sizeof(un_addr->sun_path) - 1] = '\0';
-    ctx->network.receive_addr_len                    = sizeof(struct sockaddr_un);
+
     return 0;
 }
 
 _Noreturn int await_client_connection(struct context *ctx)
 {
-    // TODO make select or poll, handle the client, pass the domain to children, and the currently working client sockets (keep alive)
+    // make select or poll, handle the client, pass the domain to children, and the currently working client sockets (keep alive)
 
-    nfds_t max_clients    = 0;
+    nfds_t max_clients = 0;
+    // Load domain socket into poll fds
     ctx->network.poll_fds = initialize_pollfds(ctx->network.receive_fd, ctx->network.domain_fd[0], &ctx->network.poll_clients);
-    // TODO Load domain socket into poll fds
     while(1)
     {
         int activity;
@@ -351,7 +346,7 @@ _Noreturn int await_client_connection(struct context *ctx)
 
         if(ctx->network.poll_fds[1].fd != -1 && (ctx->network.poll_fds[1].revents & POLLIN))
         {
-            // TODO Handle domain socket input, will be an fd that should be toggled
+            // Handle domain socket input, will be an fd that should be toggled
             int         result;
             struct stat my_fd;
             struct stat target_fd;
@@ -382,9 +377,15 @@ _Noreturn int await_client_connection(struct context *ctx)
 
                 if(my_fd.st_ino == target_fd.st_ino)
                 {
-                    // Toggle FD on
+// Toggle FD on
+#ifdef __linux
                     ctx->network.poll_fds[i].events = POLLIN + POLLRDHUP + POLLHUP;
+#endif
+#ifdef __APPLE__
+                    ctx->network.poll_fds[i].events = POLLIN + POLL_HUP + POLLHUP;
+#endif
                     close(new_fd);
+                    break;
                 }
             }
         }
@@ -400,22 +401,31 @@ _Noreturn int await_client_connection(struct context *ctx)
                 // toggle fd flag so that it can't be read from
                 ctx->network.poll_fds[i].events = 0;
             }
+#ifdef __linux
             if(ctx->network.poll_fds[i].fd != -1 && (ctx->network.poll_fds[i].revents & POLLRDHUP))
+#endif
+#ifdef __APPLE__
+                if(ctx->network.poll_fds[i].fd != -1 && (ctx->network.poll_fds[i].revents & POLL_HUP))
+#endif
+                {
+                    // fd cleanup
+                    ctx->network.poll_fds[i].events = 0;
+                    remove_poll_client((int)i, &ctx->network.poll_clients, &max_clients, &ctx->network.poll_fds);
+                    break;
+                }
+            if(ctx->network.poll_fds[i].fd != -1)
             {
-                // fd cleanup
-                ctx->network.poll_fds[i].events = 0;
-                remove_poll_client((int)i, &ctx->network.poll_clients, &max_clients, &ctx->network.poll_fds);
-            }
-            result = recv(ctx->network.poll_fds[i].fd, &buf, 1, MSG_PEEK | MSG_DONTWAIT);
-            if(errno == ECONNRESET || errno == ENOTCONN || result == 0)
-            {
-                ctx->network.poll_fds[i].events = 0;
-                remove_poll_client((int)i, &ctx->network.poll_clients, &max_clients, &ctx->network.poll_fds);
+                result = recv(ctx->network.poll_fds[i].fd, &buf, 1, MSG_PEEK | MSG_DONTWAIT);    // A check if the fd connection is dead
+                if(((result == -1 && (errno == ECONNRESET || errno == ENOTCONN)) || result == 0) && ctx->network.poll_fds[i].events & POLLIN)
+                {
+                    ctx->network.poll_fds[i].events = 0;
+                    remove_poll_client((int)i, &ctx->network.poll_clients, &max_clients, &ctx->network.poll_fds);
+                }
             }
             errno = 0;
         }
     }
-    free(ctx->network.poll_fds);
+    // free(ctx->network.poll_fds);
 }
 
 struct pollfd *initialize_pollfds(int sockfd, int domain_fd, int **client_sockets)
@@ -442,7 +452,7 @@ struct pollfd *initialize_pollfds(int sockfd, int domain_fd, int **client_socket
 
 void handle_new_connection(int sockfd, int **client_sockets, nfds_t *max_clients, struct pollfd **fds)
 {
-    if((*fds)[0].revents & POLLIN)
+    if((*fds)[0].revents & POLLIN && sockfd == (*fds)[0].fd)
     {
         socklen_t          addrlen;
         int                new_socket;
@@ -450,7 +460,7 @@ void handle_new_connection(int sockfd, int **client_sockets, nfds_t *max_clients
         struct sockaddr_un addr;
 
         addrlen    = sizeof(addr);
-        new_socket = accept(sockfd, (struct sockaddr *)&addr, &addrlen);
+        new_socket = accept((*fds)[0].fd, (struct sockaddr *)&addr, &addrlen);
 
         if(new_socket == -1)
         {
@@ -482,9 +492,14 @@ void handle_new_connection(int sockfd, int **client_sockets, nfds_t *max_clients
             }
             else
             {
-                *fds                                                    = new_fds;
-                (*fds)[*max_clients + REQUIRED_SOCKET_COUNT - 1].fd     = new_socket;
+                *fds                                                = new_fds;
+                (*fds)[*max_clients + REQUIRED_SOCKET_COUNT - 1].fd = new_socket;
+#ifdef __linux
                 (*fds)[*max_clients + REQUIRED_SOCKET_COUNT - 1].events = POLLIN + POLLRDHUP + POLLHUP;
+#endif
+#ifdef __APPLE__
+                (*fds)[*max_clients + REQUIRED_SOCKET_COUNT - 1].events = POLLIN + POLL_HUP + POLLHUP;
+#endif
             }
         }
     }

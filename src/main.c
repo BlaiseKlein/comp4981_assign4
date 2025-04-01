@@ -1,4 +1,4 @@
-#include "../include/display.h"
+#include "data_types.h"
 #include "req_handler.h"
 #include <fcntl.h>
 #include <network.h>
@@ -6,7 +6,6 @@
 #include <server.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <sys/wait.h>
 
 int main(int argc, char **argv)
 {
@@ -17,11 +16,7 @@ int main(int argc, char **argv)
 
     setup_socket(ctx);
 
-    if(socketpair(AF_UNIX, SOCK_STREAM, 0, ctx->network.domain_fd) == -1)
-    {
-        perror("Error creating socket pair");
-        exit(EXIT_FAILURE);
-    }
+    setup_domain_socket(ctx);
 
     // Fork watcher, but don't pass ctx->network.domain_fd[0]
     fcntl(ctx->network.domain_fd[0], F_SETFD, fcntl(ctx->network.domain_fd[0], F_GETFD) | FD_CLOEXEC);
@@ -32,8 +27,8 @@ int main(int argc, char **argv)
         close(ctx->network.domain_fd[0]);
         setup_children(ctx);
         watch_children(ctx);
-        free(ctx);
-        exit(0);
+        // free(ctx);
+        // exit(0);
     }
     else if(pid < 0)
     {
@@ -47,9 +42,9 @@ int main(int argc, char **argv)
         // If parent: close ctx->network.domain_fd[1], start await connections
         close(ctx->network.domain_fd[1]);
         await_client_connection(ctx);    // TODO make select or poll, handle the client, the domain to children, and the currently working client sockets (keep alive)
-        return 0;
+        // return 0;
     }
 
-    free(ctx);
-    return EXIT_SUCCESS;
+    // free(ctx);
+    // return EXIT_SUCCESS;
 }

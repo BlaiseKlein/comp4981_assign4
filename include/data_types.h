@@ -13,32 +13,46 @@
 
 struct network_state
 {
-    int                      receive_fd;
+    /* cppcheck-suppress unusedStructMember */
+    int receive_fd;
+    /* cppcheck-suppress unusedStructMember */
     struct sockaddr_storage *receive_addr;
-    socklen_t                receive_addr_len;
-    in_port_t                receive_port;
-    int                      next_client_fd;
-    int                      domain_fd[2];
-    pid_t                    child_pids[CHILD_COUNT];
-    struct pollfd           *poll_fds;
-    int                     *poll_clients;
+    /* cppcheck-suppress unusedStructMember */
+    socklen_t receive_addr_len;
+    /* cppcheck-suppress unusedStructMember */
+    in_port_t receive_port;
+    /* cppcheck-suppress unusedStructMember */
+    int next_client_fd;
+    /* cppcheck-suppress unusedStructMember */
+    int domain_fd[2];
+    /* cppcheck-suppress unusedStructMember */
+    pid_t child_pids[CHILD_COUNT];
+    /* cppcheck-suppress unusedStructMember */
+    struct pollfd *poll_fds;
+    /* cppcheck-suppress unusedStructMember */
+    int *poll_clients;
 };
 
 struct arguments
 {
-    char   *sys_addr;
+    /* cppcheck-suppress unusedStructMember */
+    char *sys_addr;
+    /* cppcheck-suppress unusedStructMember */
     ssize_t sys_addr_len;
-    char   *sys_port;
+    /* cppcheck-suppress unusedStructMember */
+    char *sys_port;
 };
 
 struct context
 {
-    struct arguments     arg;
+    /* cppcheck-suppress unusedStructMember */
+    struct arguments arg;
+    /* cppcheck-suppress unusedStructMember */
     struct network_state network;
-    int                  err;
-    char               **paths;
-    int                  paths_len;
-    pthread_t            watcher_thread;
+    /* cppcheck-suppress unusedStructMember */
+    int err;
+    /* cppcheck-suppress unusedStructMember */
+    pid_t watcher_thread;
 };
 
 #endif    // DATA_TYPES_H

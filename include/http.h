@@ -18,26 +18,46 @@ enum http_method
 
 struct thread_state
 {
-    int              client_fd;
-    char            *request_line_string;
-    size_t           request_line_string_len;
-    char            *date_header;
-    char            *pragma_header;
-    char            *auth_header;
-    char            *from_header;
-    char            *if_modified_since_header;
-    char            *referer_header;
-    char            *user_agent_header;
-    char            *allow_header;
-    char            *content_encoding_header;
-    char            *content_length_header;
-    char            *content_type_header;
-    char            *expires_header;
-    char            *last_modified_header;
-    char            *resource_string;
+    /* cppcheck-suppress unusedStructMember */
+    int client_fd;
+    /* cppcheck-suppress unusedStructMember */
+    char *request_line_string;
+    /* cppcheck-suppress unusedStructMember */
+    size_t request_line_string_len;
+    /* cppcheck-suppress unusedStructMember */
+    char *date_header;
+    /* cppcheck-suppress unusedStructMember */
+    char *pragma_header;
+    /* cppcheck-suppress unusedStructMember */
+    char *auth_header;
+    /* cppcheck-suppress unusedStructMember */
+    char *from_header;
+    /* cppcheck-suppress unusedStructMember */
+    char *if_modified_since_header;
+    /* cppcheck-suppress unusedStructMember */
+    char *referer_header;
+    /* cppcheck-suppress unusedStructMember */
+    char *user_agent_header;
+    /* cppcheck-suppress unusedStructMember */
+    char *allow_header;
+    /* cppcheck-suppress unusedStructMember */
+    char *content_encoding_header;
+    /* cppcheck-suppress unusedStructMember */
+    char *content_length_header;
+    /* cppcheck-suppress unusedStructMember */
+    char *content_type_header;
+    /* cppcheck-suppress unusedStructMember */
+    char *expires_header;
+    /* cppcheck-suppress unusedStructMember */
+    char *last_modified_header;
+    /* cppcheck-suppress unusedStructMember */
+    char *resource_string;
+    /* cppcheck-suppress unusedStructMember */
     enum http_method method;
-    int              err;
-    char            *version;
+    /* cppcheck-suppress unusedStructMember */
+    int err;
+    /* cppcheck-suppress unusedStructMember */
+    char *version;
 };
 
 void  *parse_request(void *data);

@@ -31,30 +31,4 @@ void           remove_poll_client(int poll_index, int **client_sockets, nfds_t *
 int            recv_fd(int socket);
 void           send_fd(int socket, int fd);
 
-static int connect_to_server(struct sockaddr_storage *addr, socklen_t addr_len, int *err)
-{
-    int fd;
-    int result;
-
-    fd = socket(addr->ss_family, SOCK_STREAM, 0);    // NOLINT(android-cloexec-socket)
-
-    if(fd == -1)
-    {
-        *err = errno;
-        goto done;
-    }
-
-    result = connect(fd, (const struct sockaddr *)addr, addr_len);
-
-    if(result == -1)
-    {
-        *err = errno;
-        close(fd);
-        fd = -1;
-    }
-
-done:
-    return fd;
-}
-
 #endif    // NETWORK_H
