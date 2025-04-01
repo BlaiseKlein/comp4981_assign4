@@ -6,6 +6,7 @@
 #include <server.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 int main(int argc, char **argv)
 {
@@ -13,7 +14,14 @@ int main(int argc, char **argv)
     pid_t           pid;
     ctx = (struct context *)malloc(sizeof(struct context));
     parse_arguments(argc, argv, ctx);
-
+    ctx->lib_info.path     = strdup("./libhandler.so");
+    ctx->lib_info.handle   = NULL;
+    ctx->lib_info.last_mod = 0;
+    if(!ctx->lib_info.path)
+    {
+        perror("Failed to set library path");
+        return EXIT_FAILURE;
+    }
     setup_socket(ctx);
 
     setup_domain_socket(ctx);

@@ -5,6 +5,7 @@
 #ifndef REQ_HANDLER_H
 #define REQ_HANDLER_H
 
+#include "child.h"
 #include "data_types.h"
 
 int            setup_children(struct context *ctx);

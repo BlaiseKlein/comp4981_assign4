@@ -43,6 +43,16 @@ struct arguments
     char *sys_port;
 };
 
+struct library_info
+{
+    /* cppcheck-suppress unusedStructMember */
+    void *handle;    // library handle from dlopen()
+    /* cppcheck-suppress unusedStructMember */
+    time_t last_mod;
+    /* cppcheck-suppress unusedStructMember */
+    const char *path;    // path to library
+};
+
 struct context
 {
     /* cppcheck-suppress unusedStructMember */
@@ -53,6 +63,8 @@ struct context
     int err;
     /* cppcheck-suppress unusedStructMember */
     pid_t watcher_thread;
+    /* cppcheck-suppress unusedStructMember */
+    struct library_info lib_info;
 };
 
 #endif    // DATA_TYPES_H

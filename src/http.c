@@ -54,30 +54,36 @@ void *parse_request(void *context_data)
     return data;
 }
 
-void *http_respond(struct thread_state *data)
-{
-    if(data->method == GET)
-    {
-        printf("GET request %s\n", data->resource_string);
-        handle_get_request(data->client_fd, data->resource_string);
-        return NULL;
-    }
-    if(data->method == HEAD)
-    {
-        printf("HEAD request\n");
-        handle_head_request(data->client_fd, data->resource_string);
-        return NULL;
-    }
-    printf("OTHER request\n");
-    {
-        const char *resp = "HTTP/1.0 405 Method Not Allowed\r\n"
-                           "Content-Type: text/plain\r\n\r\n"
-                           "405 Method Not Allowed";
-        write(data->client_fd, resp, strlen(resp));
-    }
-    close(data->client_fd);
-    return data;
-}
+// void *http_respond(struct thread_state *data)
+// {
+//     if(data->method == GET)
+//     {
+//         printf("GET request %s\n", data->resource_string);
+//         handle_get_request(data->client_fd, data->resource_string);
+//         return NULL;
+//     }
+//     if(data->method == HEAD)
+//     {
+//         printf("HEAD request\n");
+//         handle_head_request(data->client_fd, data->resource_string);
+//         return NULL;
+//     }
+//     if(data->method == POST)
+//     {
+//         printf("POST request %s\n", data->resource_string);
+//         handle_post_request(state->client_fd, data);
+//         return NULL;
+//     }
+//     printf("OTHER request\n");
+//     {
+//         const char *resp = "HTTP/1.0 405 Method Not Allowed\r\n"
+//                            "Content-Type: text/plain\r\n\r\n"
+//                            "405 Method Not Allowed";
+//         write(data->client_fd, resp, strlen(resp));
+//     }
+//     close(data->client_fd);
+//     return data;
+// }
 
 size_t read_until(int fd, char *buffer, size_t len, const char *delimiter, int *err)
 {
@@ -159,6 +165,10 @@ int parse_request_line(struct thread_state *data)
     else if(strcmp(method, "HEAD") == 0)
     {
         data->method = HEAD;
+    }
+    else if(strcmp(method, "POST") == 0)
+    {
+        data->method = POST;
     }
 
     data->resource_string = (char *)malloc((MAXLINELENGTH) * sizeof(char));
@@ -300,6 +310,7 @@ int parse_header(struct thread_state *data, char **buffer, bool *breaks, bool *c
             data->user_agent_header = NULL;
             goto cleanup;
         }
+        memcpy(data->user_agent_header, info, MAXLINELENGTH);
     }
     else if(strcmp(header, "Allow") == 0)
     {
@@ -464,20 +475,21 @@ void cleanup_header(char *header)
     }
 }
 
-int handle_get_request(int fd, const char *resource)
-{
-    if(fd < 0 || resource == NULL)
-    {
-        return -1;
-    }
-    return 0;
-}
-
-int handle_head_request(int fd, const char *resource)
-{
-    if(fd < 0 || resource == NULL)
-    {
-        return -1;
-    }
-    return 0;
-}
+//
+// int handle_get_request(int fd, const char *resource)
+// {
+//     if(fd < 0 || resource == NULL)
+//     {
+//         return -1;
+//     }
+//     return 0;
+// }
+//
+// int handle_head_request(int fd, const char *resource)
+// {
+//     if(fd < 0 || resource == NULL)
+//     {
+//         return -1;
+//     }
+//     return 0;
+// }

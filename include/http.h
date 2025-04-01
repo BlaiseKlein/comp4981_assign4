@@ -13,7 +13,8 @@
 enum http_method
 {
     GET,
-    HEAD
+    HEAD,
+    POST
 };
 
 struct thread_state
@@ -69,7 +70,7 @@ void   cleanup_header(char *header);
 int    parse_header(struct thread_state *data, char **buffer, bool *breaks, bool *continues);
 void   parse_path_arguments(const char *start_resource_string, char *end_resource_string);
 void  *http_respond(struct thread_state *data);
-int    handle_get_request(int fd, const char *resource);
-int    handle_head_request(int fd, const char *resource);
+// int    handle_get_request(int fd, const char *resource);
+// int    handle_head_request(int fd, const char *resource);
 
 #endif    // HTTP_H
