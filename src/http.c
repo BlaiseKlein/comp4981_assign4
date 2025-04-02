@@ -62,7 +62,6 @@ void *parse_request(void *context_data)
     return data;
 }
 
-
 size_t read_until(int fd, char *buffer, size_t len, const char *delimiter, int *err)
 {
     ssize_t buffer_end = 0;
@@ -456,4 +455,3 @@ void cleanup_header(char *header)
         free(header);
     }
 }
-
