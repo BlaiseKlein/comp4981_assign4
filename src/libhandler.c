@@ -10,11 +10,12 @@
 #include <unistd.h>
 #include <sys/stat.h>
 #include <fcntl.h>
-#include "serve_request.h"
 #include <ctype.h>
 #include <errno.h>
 #include <ndbm.h>
 #include <time.h>
+#include <sys/socket.h>
+
 #define BUFFER_SIZE 1024
 #define SERVER_ROOT "."
 
@@ -28,6 +29,14 @@
 void handle_get_request(int client_fd, char *resource_path);
 void handle_head_request(int client_fd, char *resource_path);
 void handle_post_request(int client_fd, struct thread_state *state);
+int construct_and_validate_path(char *resource_path, char *file_path, size_t file_path_size, struct stat *path_stat);
+char hex_char_to_char(const char *c);
+void construct_http_header(char *header, size_t header_size, int status_code, const char *mime_type, size_t content_length);
+const char *get_mime_type(const char *filepath);
+void parse_url_encoding(char *resource_string);
+
+
+
 void *http_respond(struct thread_state *ts)
 {
         if (!ts || !ts->resource_string)
@@ -37,8 +46,11 @@ void *http_respond(struct thread_state *ts)
         return NULL;
     }
     const char *msg;
-    printf("[LIBRARY] Handling request: %s\n", ts->resource_string);
-if (ts->method == GET)
+    printf("[DEBUG] content_length_header: %s\n", ts->content_length_header);
+
+    printf("[LIBRARY] Handling request: %s (method %d)\n", ts->resource_string, ts->method);
+
+    if (ts->method == GET)
     handle_get_request(ts->client_fd, ts->resource_string);
 else if (ts->method == HEAD)
     handle_head_request(ts->client_fd, ts->resource_string);
@@ -50,38 +62,6 @@ else {
 }
     return NULL;
 }
-//void *http_respond(struct thread_state *state)
-//{
-//
-//    char *resource = state->resource_string;
-//        printf("[LIBRARY] Handling request: %s\n", state->resource_string);
-//
-//    if (!resource || strlen(resource) == 0)
-//    {
-//        write(state->client_fd, "HTTP/1.0 400 Bad Request\r\n\r\n", 28);
-//        return NULL;
-//    }
-//
-//    // Check method
-//    if (state->method == GET)
-//    {
-//        handle_get_request(state->client_fd, resource);
-//    }
-//    else if (state->method == HEAD)
-//    {
-//        handle_head_request(state->client_fd, resource);
-//    }
-//    else if (state->method == POST)
-//    {
-//        handle_post_request(state->client_fd, state);
-//    }
-//    else
-//    {
-//        write(state->client_fd, "HTTP/1.0 405 Method Not Allowed\r\n\r\n", 36);
-//    }
-//
-//    return NULL;
-//}
 
 
 const char *get_mime_type(const char *filepath)
@@ -184,13 +164,13 @@ void handle_head_request(int client_fd, char *resource_path)
     write(client_fd, header, strlen(header));
 }
 
-
 void handle_post_request(int client_fd, struct thread_state *state)
 {
     if (!state->content_length_header)
     {
         const char *resp = "HTTP/1.0 411 Length Required\r\n\r\n";
         write(client_fd, resp, strlen(resp));
+        shutdown(client_fd, SHUT_WR);
         return;
     }
 
@@ -199,22 +179,39 @@ void handle_post_request(int client_fd, struct thread_state *state)
     {
         const char *resp = "HTTP/1.0 400 Bad Request\r\n\r\n";
         write(client_fd, resp, strlen(resp));
+        printf("[DEBUG] Invalid Content-Length: %zu\n", content_length);
+        shutdown(client_fd, SHUT_WR);
         return;
     }
 
-    // Read body
-    char *body = malloc(content_length + 1);
+    char *body = malloc(content_length);
     if (!body)
     {
         const char *resp = "HTTP/1.0 500 Internal Server Error\r\n\r\n";
         write(client_fd, resp, strlen(resp));
+        perror("[DEBUG] malloc failed for body");
+        shutdown(client_fd, SHUT_WR);
         return;
     }
 
-    ssize_t read_bytes = read(client_fd, body, content_length);
-    body[read_bytes] = '\0';
+    ssize_t total_read = 0;
+    while (total_read < (ssize_t)content_length)
+    {
+        ssize_t n = read(client_fd, body + total_read, content_length - total_read);
+        if (n <= 0)
+        {
+            perror("[DEBUG] Failed to read full POST body");
+            const char *resp = "HTTP/1.0 400 Bad Request\r\n\r\nIncomplete POST body.\n";
+            write(client_fd, resp, strlen(resp));
+            free(body);
+            shutdown(client_fd, SHUT_WR);
+            return;
+        }
+        total_read += n;
+    }
 
-    // Open ndbm
+    printf("[DEBUG] Received body (%zd bytes): '%.*s'\n", total_read, (int)total_read, body);
+
     DBM *db = dbm_open("postdata", O_RDWR | O_CREAT, 0644);
     if (!db)
     {
@@ -222,32 +219,90 @@ void handle_post_request(int client_fd, struct thread_state *state)
         const char *resp = "HTTP/1.0 500 Internal Server Error\r\n\r\n";
         write(client_fd, resp, strlen(resp));
         free(body);
+        shutdown(client_fd, SHUT_WR);
         return;
     }
 
-    // Use timestamp as key
-    char key_buf[64];
-    snprintf(key_buf, sizeof(key_buf), "%ld", time(NULL));
-    datum key = { .dptr = key_buf, .dsize = (int)strlen(key_buf) };
-    datum value = { .dptr = body, .dsize = (int)strlen(body) };
+    // Create a timestamp key (heap allocated)
+    char timestamp_buf[64];
+    snprintf(timestamp_buf, sizeof(timestamp_buf), "%ld", time(NULL));
 
-    if (dbm_store(db, key, value, DBM_INSERT) != 0)
+    datum key;
+    key.dsize = (int)(strlen(timestamp_buf) + 1); // include null terminator
+    key.dptr = malloc(key.dsize);
+    if (!key.dptr)
+    {
+        const char *resp = "HTTP/1.0 500 Internal Server Error\r\n\r\n";
+        write(client_fd, resp, strlen(resp));
+        perror("[DEBUG] malloc failed for key.dptr");
+        dbm_close(db);
+        free(body);
+        shutdown(client_fd, SHUT_WR);
+        return;
+    }
+    memcpy(key.dptr, timestamp_buf, key.dsize);
+
+    datum value;
+    value.dsize = (int)total_read;
+    value.dptr = malloc(value.dsize);
+    if (!value.dptr)
+    {
+        const char *resp = "HTTP/1.0 500 Internal Server Error\r\n\r\n";
+        write(client_fd, resp, strlen(resp));
+        perror("[DEBUG] malloc failed for value.dptr");
+        dbm_close(db);
+        free(body);
+        free(key.dptr);
+        shutdown(client_fd, SHUT_WR);
+        return;
+    }
+
+    memcpy(value.dptr, body, value.dsize);
+    free(body);
+
+    printf("[DEBUG] key='%s', key.dsize=%d | value.dsize=%d\n", key.dptr, key.dsize, value.dsize);
+
+    if (key.dsize == 0 || value.dsize == 0)
+    {
+        const char *resp = "HTTP/1.0 400 Bad Request\r\n\r\nEmpty key or value not allowed.\n";
+        write(client_fd, resp, strlen(resp));
+        fprintf(stderr, "[DEBUG] Refusing to store empty key or value\n");
+        dbm_close(db);
+        free(value.dptr);
+        free(key.dptr);
+        shutdown(client_fd, SHUT_WR);
+        return;
+    }
+
+    printf("[DEBUG] dbm_store key='%.*s' (%d), value='%.*s' (%d)\n",
+           key.dsize, key.dptr, key.dsize,
+           value.dsize, value.dptr, value.dsize);
+
+    if (dbm_store(db, key, value, DBM_REPLACE) != 0)
     {
         const char *resp = "HTTP/1.0 500 DB Store Failed\r\n\r\n";
         write(client_fd, resp, strlen(resp));
+        perror("[DEBUG] dbm_store failed");
     }
     else
     {
-        const char *resp = "HTTP/1.0 200 OK\r\n\r\nData stored successfully.";
+        const char *resp = "HTTP/1.0 200 OK\r\nConnection: close\r\n\r\nData stored successfully.";
         write(client_fd, resp, strlen(resp));
+        printf("[POST] Stored key: '%s' (%d) | value: '%.*s' (%d)\n",
+               key.dptr, key.dsize, value.dsize, value.dptr, value.dsize);
     }
 
     dbm_close(db);
-    free(body);
+    free(value.dptr);
+    free(key.dptr);
+    shutdown(client_fd, SHUT_WR);
 }
+
 
 int construct_and_validate_path(char *resource_path, char *file_path, size_t file_path_size, struct stat *path_stat)
 {
+
+
     parse_url_encoding(resource_path);
 
     // Construct the file path

@@ -26,7 +26,7 @@ int            setup_domain_socket(struct context *ctx);
 _Noreturn int  await_client_connection(struct context *ctx);
 int            forward_request(const struct context *ctx);
 struct pollfd *initialize_pollfds(int sockfd, int domain_fd, int **client_sockets);
-void           handle_new_connection(int sockfd, int **client_sockets, nfds_t *max_clients, struct pollfd **fds);
+void           handle_new_connection(struct context *ctx, int sockfd, int **client_sockets, nfds_t *max_clients, struct pollfd **fds);
 void           remove_poll_client(int poll_index, int **client_sockets, nfds_t *max_clients, struct pollfd **fds);
 int            recv_fd(int socket);
 void           send_fd(int socket, int fd);

@@ -1,6 +1,7 @@
 # Created by https://www.toptal.com/developers/gitignore/api/c,cmake,clion,visualstudiocode,linux,macos,jetbrains,jetbrains+all,emacs,vim
 # Edit at https://www.toptal.com/developers/gitignore?templates=c,cmake,clion,visualstudiocode,linux,macos,jetbrains,jetbrains+all,emacs,vim
-
+postdata.dir
+postdata.pag
 ### C ###
 # Prerequisites
 *.d

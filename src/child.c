@@ -33,20 +33,20 @@ void check_library(struct context *ctx)
     {
         if(file_stat.st_mtime <= ctx->lib_info.last_mod)
         {
-            // printf("[DEBUG] Library has not been modified since last load.\n");
+            printf("[DEBUG] Library has not been modified since last load.\n");
             return;
         }
         needs_reload = 1;
     }
     else
     {
-        // printf("[DEBUG] No handle yet. Loading library.\n");
+        printf("[DEBUG] No handle yet. Loading library.\n");
         needs_reload = 1;
     }
 
     if(needs_reload)
     {
-        // printf("[DEBUG] Reloading library: %s\n", ctx->lib_info.path);
+        printf("[DEBUG] Reloading library: %s\n", ctx->lib_info.path);
 
         if(ctx->lib_info.handle)
         {
@@ -72,7 +72,7 @@ void check_library(struct context *ctx)
             ctx->lib_info.last_mod = file_stat.st_mtime;
         }
 
-        // printf("[DEBUG] Library %s reloaded successfully.\n", ctx->lib_info.path);
+        printf("[DEBUG] Library %s reloaded successfully.\n", ctx->lib_info.path);
     }
 }
 
@@ -85,29 +85,44 @@ int handle_request(struct context *ctx, int client_fd)
     } cast_union;
 
     struct thread_state ts;
+    memset(&ts, 0, sizeof(struct thread_state));    // ✅ Clear all fields to 0
 
-    if(client_fd <= 0)
-    {
-        fprintf(stderr, "Invalid client_fd: %d\n", client_fd);
-        return -1;
-    }
-
-    // Assign initial values after declaration
     ts.client_fd           = client_fd;
     ts.request_line_string = NULL;
     ts.err                 = 0;
 
-    cast_union.sym_ptr = dlsym(ctx->lib_info.handle, "http_respond");
-    if(!cast_union.sym_ptr)
+    // Parse the request
+    if(parse_request(&ts) == NULL)
     {
-        fprintf(stderr, "dlsym failed: %s\n", dlerror());
-        close(client_fd);
+        // const char *resp = "HTTP/1.0 400 Bad Request\r\n\r\n";
+        // fprintf(stderr, "[CHILD] parse_request failed\n");
+        // write(client_fd, resp, strlen(resp));
+        fprintf(stderr, "[CHILD] parse_request failed\n");
+
+        return 0;
+    }
+
+    if(!ts.resource_string)
+    {
+        const char *resp = "HTTP/1.0 400 Bad Request\r\n\r\nMissing URI.\n";
+        fprintf(stderr, "[CHILD] resource_string is NULL\n");
+
+        write(client_fd, resp, strlen(resp));
         return -1;
     }
 
-    parse_request(&ts);
+    // Lookup symbol in shared lib
+    cast_union.sym_ptr = dlsym(ctx->lib_info.handle, "http_respond");
+    if(!cast_union.sym_ptr)
+    {
+        fprintf(stderr, "[CHILD] dlsym failed: %s\n", dlerror());
+        return -1;
+    }
+
+    // Call response handler
     cast_union.func_ptr(&ts);
-    cleanup_headers(&ts);
+
+    cleanup_headers(&ts);    // <- This likely frees request_line_string and others
 
     return 0;
 }

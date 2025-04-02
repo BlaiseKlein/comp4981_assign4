@@ -25,13 +25,21 @@ void *parse_request(void *context_data)
     result = (ssize_t)read_until(data->client_fd, data->request_line_string, MAXLINELENGTH * sizeof(char), "\r\n", &err);
     if(result < 0)
     {
+        fprintf(stderr, "[CHILD] Failed to read request line\n");
         free(data->request_line_string);
         return NULL;
     }
 
     data->request_line_string[result] = '\0';
-    data->request_line_string_len     = strnlen(data->request_line_string, MAXLINELENGTH);
-    request_line_result               = parse_request_line(data);
+    fprintf(stderr, "[CHILD] Raw request line: '%s'\n", data->request_line_string);
+    // 💡 Gracefully ignore empty connections
+    if(strlen(data->request_line_string) == 0)
+    {
+        // No request came in — maybe speculative or keep-alive socket
+        return NULL;
+    }
+    data->request_line_string_len = strnlen(data->request_line_string, MAXLINELENGTH);
+    request_line_result           = parse_request_line(data);
     if(request_line_result < 0)
     {
         free(data->request_line_string);
@@ -54,36 +62,6 @@ void *parse_request(void *context_data)
     return data;
 }
 
-// void *http_respond(struct thread_state *data)
-// {
-//     if(data->method == GET)
-//     {
-//         printf("GET request %s\n", data->resource_string);
-//         handle_get_request(data->client_fd, data->resource_string);
-//         return NULL;
-//     }
-//     if(data->method == HEAD)
-//     {
-//         printf("HEAD request\n");
-//         handle_head_request(data->client_fd, data->resource_string);
-//         return NULL;
-//     }
-//     if(data->method == POST)
-//     {
-//         printf("POST request %s\n", data->resource_string);
-//         handle_post_request(state->client_fd, data);
-//         return NULL;
-//     }
-//     printf("OTHER request\n");
-//     {
-//         const char *resp = "HTTP/1.0 405 Method Not Allowed\r\n"
-//                            "Content-Type: text/plain\r\n\r\n"
-//                            "405 Method Not Allowed";
-//         write(data->client_fd, resp, strlen(resp));
-//     }
-//     close(data->client_fd);
-//     return data;
-// }
 
 size_t read_until(int fd, char *buffer, size_t len, const char *delimiter, int *err)
 {
@@ -229,12 +207,16 @@ int parse_header(struct thread_state *data, char **buffer, bool *breaks, bool *c
     // Read up to colon_place and get the header name
     for(int i = 0; *buffer != colon_place; i++, (*buffer)++)
     {
-        header[i] = (*buffer)[0];
+        header[i]     = (*buffer)[0];
+        header[i + 1] = '\0';    // ← Add this line (or do it after the loop)
     }
 
     // Read after the colon_place to get the header information
     (*buffer)++;    // One for the colon
-    (*buffer)++;    // One more for the space
+    while(**buffer == ' ')
+    {
+        (*buffer)++;
+    }
     memset(info, 0, MAXLINELENGTH);
     for(int i = 0; (*buffer)[0] != '\r' && (*buffer)[1] != '\n'; i++, (*buffer)++)
     {
@@ -475,21 +457,3 @@ void cleanup_header(char *header)
     }
 }
 
-//
-// int handle_get_request(int fd, const char *resource)
-// {
-//     if(fd < 0 || resource == NULL)
-//     {
-//         return -1;
-//     }
-//     return 0;
-// }
-//
-// int handle_head_request(int fd, const char *resource)
-// {
-//     if(fd < 0 || resource == NULL)
-//     {
-//         return -1;
-//     }
-//     return 0;
-// }
