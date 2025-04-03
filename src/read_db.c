@@ -14,6 +14,11 @@
 #else    // Linux: dptr is already a char*, no cast needed
     #define PRINT_KEY_PTR(ptr) (ptr)
 #endif
+#ifdef __APPLE__
+    #define DBDATA(d) ((char *)(d))
+#else
+    #define DBDATA(d) (d)
+#endif
 
 int main(void)
 {
@@ -47,12 +52,13 @@ int main(void)
         }
         else
         {
+            const char *val_ptr = DBDATA(value.dptr);
             // Print the key and value if they are valid
             printf("Key: %.*s\n", CAST_KEY_DSIZE(key.dsize), PRINT_KEY_PTR(key.dptr));
             printf("Value (raw): ");
             for(int i = 0; i < value.dsize; i++)
             {
-                printf("%c", isprint((unsigned char)value.dptr[i]) ? value.dptr[i] : '.');
+                printf("%c", isprint((unsigned char)val_ptr[i]) ? val_ptr[i] : '.');
             }
             printf("\n\n");
         }
