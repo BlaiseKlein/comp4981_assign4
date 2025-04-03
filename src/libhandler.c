@@ -46,9 +46,9 @@ void *http_respond(struct thread_state *ts)
         return NULL;
     }
     const char *msg;
-    printf("[DEBUG] content_length_header: %s\n", ts->content_length_header);
+    //printf("[DEBUG] content_length_header: %s\n", ts->content_length_header);
 
-    printf("[LIBRARY] Handling request: %s (method %d)\n", ts->resource_string, ts->method);
+    //printf("[LIBRARY] Handling request: %s (method %d)\n", ts->resource_string, ts->method);
 
     if (ts->method == GET)
     handle_get_request(ts->client_fd, ts->resource_string);
@@ -179,7 +179,7 @@ void handle_post_request(int client_fd, struct thread_state *state)
     {
         const char *resp = "HTTP/1.0 400 Bad Request\r\n\r\n";
         write(client_fd, resp, strlen(resp));
-        printf("[DEBUG] Invalid Content-Length: %zu\n", content_length);
+      //  printf("[DEBUG] Invalid Content-Length: %zu\n", content_length);
         shutdown(client_fd, SHUT_WR);
         return;
     }
@@ -210,7 +210,7 @@ void handle_post_request(int client_fd, struct thread_state *state)
         total_read += n;
     }
 
-    printf("[DEBUG] Received body (%zd bytes): '%.*s'\n", total_read, (int)total_read, body);
+   // printf("[DEBUG] Received body (%zd bytes): '%.*s'\n", total_read, (int)total_read, body);
 
     DBM *db = dbm_open("postdata", O_RDWR | O_CREAT, 0644);
     if (!db)
@@ -266,7 +266,7 @@ void handle_post_request(int client_fd, struct thread_state *state)
     {
         const char *resp = "HTTP/1.0 400 Bad Request\r\n\r\nEmpty key or value not allowed.\n";
         write(client_fd, resp, strlen(resp));
-        fprintf(stderr, "[DEBUG] Refusing to store empty key or value\n");
+      //  fprintf(stderr, "[DEBUG] Refusing to store empty key or value\n");
         dbm_close(db);
         free(value.dptr);
         free(key.dptr);
@@ -274,7 +274,7 @@ void handle_post_request(int client_fd, struct thread_state *state)
         return;
     }
 
-    printf("[DEBUG] dbm_store key='%.*s' (%d), value='%.*s' (%d)\n",
+   // printf("[DEBUG] dbm_store key='%.*s' (%d), value='%.*s' (%d)\n",
            key.dsize, key.dptr, key.dsize,
            value.dsize, value.dptr, value.dsize);
 
@@ -288,7 +288,7 @@ void handle_post_request(int client_fd, struct thread_state *state)
     {
         const char *resp = "HTTP/1.0 200 OK\r\nConnection: close\r\n\r\nData stored successfully.";
         write(client_fd, resp, strlen(resp));
-        printf("[POST] Stored key: '%s' (%d) | value: '%.*s' (%d)\n",
+        //printf("[POST] Stored key: '%s' (%d) | value: '%.*s' (%d)\n",
                key.dptr, key.dsize, value.dsize, value.dptr, value.dsize);
     }
 
