@@ -9,6 +9,12 @@
 #else
     #define CAST_KEY_DSIZE(key_dsize) (key_dsize)    // On Linux, dsize is already int
 #endif
+#if defined(__APPLE__)    // macOS needs a cast from void* to char*
+    #define PRINT_KEY_PTR(ptr) ((char *)(ptr))
+#else    // Linux: dptr is already a char*, no cast needed
+    #define PRINT_KEY_PTR(ptr) (ptr)
+#endif
+
 int main(void)
 {
     DBM  *db;
@@ -42,7 +48,7 @@ int main(void)
         else
         {
             // Print the key and value if they are valid
-            printf("Key: %.*s\n", CAST_KEY_DSIZE(key.dsize), key.dptr);
+            printf("Key: %.*s\n", CAST_KEY_DSIZE(key.dsize), PRINT_KEY_PTR(key.dptr));
             printf("Value (raw): ");
             for(int i = 0; i < value.dsize; i++)
             {
