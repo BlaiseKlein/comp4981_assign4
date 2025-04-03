@@ -39,16 +39,17 @@ void parse_url_encoding(char *resource_string);
 
 void *http_respond(struct thread_state *ts)
 {
+    printf("hello from library\n");
         if (!ts || !ts->resource_string)
     {
-        const char *resp = "HTTP/1.0 400 Bad Request\r\n\r\nMissing or malformed request.\n";
+        const char *resp = "HTTP/1.0 400 Bad Request\r\n\r\nMissing or malformed request\n";
         write(ts->client_fd, resp, strlen(resp));
         return NULL;
     }
     const char *msg;
     //printf("[DEBUG] content_length_header: %s\n", ts->content_length_header);
 
-    //printf("[LIBRARY] Handling request: %s (method %d)\n", ts->resource_string, ts->method);
+    printf("[LIBRARY] Handling request: %s (method %d)\n", ts->resource_string, ts->method);
 
     if (ts->method == GET)
     handle_get_request(ts->client_fd, ts->resource_string);
@@ -286,8 +287,12 @@ void handle_post_request(int client_fd, struct thread_state *state)
     }
     else
     {
-        const char *resp = "HTTP/1.0 200 OK\r\nConnection: close\r\n\r\nData stored successfully.";
-        write(client_fd, resp, strlen(resp));
+char header[BUFFER_SIZE];
+construct_http_header(header, sizeof(header), OK, "text/plain", strlen("Data stored successfully.\n"));
+write(client_fd, header, strlen(header));
+write(client_fd, "Data stored successfully.\n", strlen("Data stored successfully.\n"));
+shutdown(client_fd, SHUT_WR);
+
         //printf("[POST] Stored key: '%s' (%d) | value: '%.*s' (%d)\n",
 //               key.dptr, key.dsize, value.dsize, value.dptr, value.dsize);
     }
