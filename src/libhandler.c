@@ -260,7 +260,7 @@ void handle_post_request(int client_fd, struct thread_state *state)
     memcpy(value.dptr, body, value.dsize);
     free(body);
 
-    printf("[DEBUG] key='%s', key.dsize=%d | value.dsize=%d\n", key.dptr, key.dsize, value.dsize);
+//    printf("[DEBUG] key='%s', key.dsize=%d | value.dsize=%d\n", key.dptr, key.dsize, value.dsize);
 
     if (key.dsize == 0 || value.dsize == 0)
     {
@@ -275,8 +275,8 @@ void handle_post_request(int client_fd, struct thread_state *state)
     }
 
    // printf("[DEBUG] dbm_store key='%.*s' (%d), value='%.*s' (%d)\n",
-           key.dsize, key.dptr, key.dsize,
-           value.dsize, value.dptr, value.dsize);
+//           key.dsize, key.dptr, key.dsize,
+//           value.dsize, value.dptr, value.dsize);
 
     if (dbm_store(db, key, value, DBM_REPLACE) != 0)
     {
@@ -289,7 +289,7 @@ void handle_post_request(int client_fd, struct thread_state *state)
         const char *resp = "HTTP/1.0 200 OK\r\nConnection: close\r\n\r\nData stored successfully.";
         write(client_fd, resp, strlen(resp));
         //printf("[POST] Stored key: '%s' (%d) | value: '%.*s' (%d)\n",
-               key.dptr, key.dsize, value.dsize, value.dptr, value.dsize);
+//               key.dptr, key.dsize, value.dsize, value.dptr, value.dsize);
     }
 
     dbm_close(db);
