@@ -53,6 +53,5 @@ _Noreturn void startup_child(struct context *ctx)
         }
         // 4. Notify parent that this fd can be used again
         send_fd(ctx->network.domain_fd[1], client_fd);
-
     }
 }

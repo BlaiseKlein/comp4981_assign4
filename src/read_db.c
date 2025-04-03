@@ -4,7 +4,11 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-
+#if defined(__APPLE__)                                    // For macOS only
+    #define CAST_KEY_DSIZE(key_dsize) (int)(key_dsize)    // On macOS, we cast it to int
+#else
+    #define CAST_KEY_DSIZE(key_dsize) (key_dsize)    // On Linux, dsize is already int
+#endif
 int main(void)
 {
     DBM  *db;
@@ -38,11 +42,11 @@ int main(void)
         else
         {
             // Print the key and value if they are valid
-            printf("Key: %.*s\n", key.dsize, key.dptr);
+            printf("Key: %.*s\n", CAST_KEY_DSIZE(key.dsize), key.dptr);
             printf("Value (raw): ");
             for(int i = 0; i < value.dsize; i++)
             {
-                printf("%c", isprint(value.dptr[i]) ? value.dptr[i] : '.');
+                printf("%c", isprint((unsigned char)value.dptr[i]) ? value.dptr[i] : '.');
             }
             printf("\n\n");
         }
