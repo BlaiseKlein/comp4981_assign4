@@ -19,6 +19,8 @@
 #else
     #define DBDATA(d) (d)
 #endif
+// Use this to safely cast dsize when needed (only if it's unsigned)
+#define DBDSIZE(d) ((int)(d))
 
 int main(void)
 {
@@ -56,7 +58,7 @@ int main(void)
             // Print the key and value if they are valid
             printf("Key: %.*s\n", CAST_KEY_DSIZE(key.dsize), PRINT_KEY_PTR(key.dptr));
             printf("Value (raw): ");
-            for(int i = 0; i < value.dsize; i++)
+            for(int i = 0; i < DBDSIZE(value.dsize); i++)
             {
                 printf("%c", isprint((unsigned char)val_ptr[i]) ? val_ptr[i] : '.');
             }
