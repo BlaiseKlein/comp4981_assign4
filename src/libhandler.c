@@ -139,7 +139,7 @@ void handle_get_request(int client_fd, char *resource_path)
         write(client_fd, file_buffer, (size_t)bytes_read);
     }
 
-    close(filefd);
+//    shutdown(client_fd, SHUT_WR);
 }
 
 void handle_head_request(int client_fd, char *resource_path)
@@ -295,7 +295,7 @@ void handle_post_request(int client_fd, struct thread_state *state)
     dbm_close(db);
     free(value.dptr);
     free(key.dptr);
-    shutdown(client_fd, SHUT_WR);
+//    shutdown(client_fd, SHUT_WR);
 }
 
 

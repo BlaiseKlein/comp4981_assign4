@@ -28,7 +28,7 @@ int main(void)
     while(key.dptr != NULL)    // Iterate through all keys
     {
         datum value = dbm_fetch(db, key);    // Fetch the value associated with the current key
-        printf("[DEBUG FETCH] value.dptr: %p, value.dsize: %d\n", value.dptr, value.dsize);
+        // printf("[DEBUG FETCH] value.dptr: %p, value.dsize: %d\n", value.dptr, value.dsize);
 
         // Check if key or value is invalid
         if(key.dptr == NULL || key.dsize <= 0 || value.dptr == NULL || value.dsize <= 0)

@@ -2,6 +2,4 @@ main src/main.c src/http.c include/http.h src/server.c include/server.h include/
 
 readDb src/read_db.c gdbm_compat gdbm
 
-testDB src/test.c gdbm_compat gdbm
-
 
