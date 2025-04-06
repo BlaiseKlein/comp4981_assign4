@@ -1,5 +1,6 @@
-main src/main.c src/http.c include/http.h src/server.c include/server.h include/data_types.h src/network.c include/network.h src/req_handler.c include/req_handler.h src/child.c include/child.h
+main src/main.c src/server.c include/server.h include/data_types.h src/network.c include/network.h src/req_handler.c include/req_handler.h src/child.c include/child.h
 
-readDb src/read_db.c
+readDb src/read_db.c gdbm_compat gdbm
+
 
 

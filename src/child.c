@@ -1,7 +1,6 @@
 
 #include "child.h"
 #include "data_types.h"
-#include "http.h"
 #include "network.h"
 #include <dlfcn.h>
 #include <stdio.h>
@@ -13,6 +12,7 @@ void check_library(struct context *ctx)
 {
     struct stat file_stat;
     int         needs_reload = 0;
+    printf("[check_library] start\n");
 
     if(!ctx || !ctx->lib_info.path)
     {
@@ -33,20 +33,20 @@ void check_library(struct context *ctx)
     {
         if(file_stat.st_mtime <= ctx->lib_info.last_mod)
         {
-            printf("[DEBUG] Library has not been modified since last load.\n");
+            printf("[check_library DEBUG] Library has not been modified since last load.\n");
             return;
         }
         needs_reload = 1;
     }
     else
     {
-        printf("[DEBUG] No handle yet. Loading library.\n");
+        printf("[check_library DEBUG] No handle yet. Loading library.\n");
         needs_reload = 1;
     }
 
     if(needs_reload)
     {
-        printf("[DEBUG] Reloading library: %s\n", ctx->lib_info.path);
+        printf("[check_library DEBUG] Reloading library: %s\n", ctx->lib_info.path);
 
         if(ctx->lib_info.handle)
         {
@@ -72,7 +72,7 @@ void check_library(struct context *ctx)
             ctx->lib_info.last_mod = file_stat.st_mtime;
         }
 
-        printf("[DEBUG] Library %s reloaded successfully.\n", ctx->lib_info.path);
+        printf("[check_library DEBUG] Library %s reloaded successfully.\n", ctx->lib_info.path);
     }
 }
 
@@ -82,47 +82,70 @@ int handle_request(struct context *ctx, int client_fd)
     {
         void *sym_ptr;
         void *(*func_ptr)(struct thread_state *);
-    } cast_union;
+    } http_respond_union;
+
+    union
+    {
+        void *sym_ptr;
+        struct thread_state *(*func_ptr)(struct thread_state *);
+    } parse_request_union;
+
+    union
+    {
+        void *sym_ptr;
+        void (*func_ptr)(struct thread_state *);
+    } cleanup_headers_union;
 
     struct thread_state ts;
     memset(&ts, 0, sizeof(struct thread_state));    // ✅ Clear all fields to 0
+    printf("[handle request DEBUG] start\n");
 
     ts.client_fd           = client_fd;
     ts.request_line_string = NULL;
     ts.err                 = 0;
 
-    // Parse the request
-    if(parse_request(&ts) == NULL)
+    // dlsym for parse_request
+    parse_request_union.sym_ptr = dlsym(ctx->lib_info.handle, "parse_request");
+    if(!parse_request_union.sym_ptr)
     {
-        // const char *resp = "HTTP/1.0 400 Bad Request\r\n\r\n";
-        // fprintf(stderr, "[CHILD] parse_request failed\n");
-        // write(client_fd, resp, strlen(resp));
-        fprintf(stderr, "[CHILD] parse_request failed\n");
+        fprintf(stderr, "dlsym parse_request failed: %s\n", dlerror());
+        return -1;
+    }
 
+    // dlsym for cleanup_headers
+    cleanup_headers_union.sym_ptr = dlsym(ctx->lib_info.handle, "cleanup_headers");
+    if(!cleanup_headers_union.sym_ptr)
+    {
+        fprintf(stderr, "dlsym cleanup_headers failed: %s\n", dlerror());
+        return -1;
+    }
+    // dlsym for http_respond
+    http_respond_union.sym_ptr = dlsym(ctx->lib_info.handle, "http_respond");
+    if(!http_respond_union.sym_ptr)
+    {
+        fprintf(stderr, "dlsym http_respond failed: %s\n", dlerror());
+        return -1;
+    }
+
+    // Parse request dynamically
+    if(parse_request_union.func_ptr(&ts) == NULL)
+    {
+        fprintf(stderr, "[handle request DEBUG] parse_request failed\n");
         return 0;
     }
 
     if(!ts.resource_string)
     {
         const char *resp = "HTTP/1.0 400 Bad Request\r\n\r\nMissing URI.\n";
-        fprintf(stderr, "[CHILD] resource_string is NULL\n");
-
         write(client_fd, resp, strlen(resp));
         return -1;
     }
 
-    // Lookup symbol in shared lib
-    cast_union.sym_ptr = dlsym(ctx->lib_info.handle, "http_respond");
-    if(!cast_union.sym_ptr)
-    {
-        fprintf(stderr, "[CHILD] dlsym failed: %s\n", dlerror());
-        return -1;
-    }
+    // Call handler
+    http_respond_union.func_ptr(&ts);
 
-    // Call response handler
-    cast_union.func_ptr(&ts);
-
-    cleanup_headers(&ts);    // <- This likely frees request_line_string and others
+    // Cleanup dynamically
+    cleanup_headers_union.func_ptr(&ts);
 
     return 0;
 }

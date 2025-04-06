@@ -5,16 +5,39 @@
 #ifndef HTTP_H
 #define HTTP_H
 
-#define MAXMESSAGELENGTH 4096
-#define MAXLINELENGTH 2048
+#include "http.h"
+#include <ctype.h>
+#include <errno.h>
+#include <fcntl.h>
+#include <ndbm.h>
 #include <stdbool.h>
 #include <stddef.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <sys/socket.h>
+#include <sys/stat.h>
+#include <time.h>
+#include <unistd.h>
+
+#define BUFFER_SIZE 1024
+#define SERVER_ROOT "."
+#define MAXMESSAGELENGTH 4096
+#define MAXLINELENGTH 2048
+#define OK 200
+#define NOT_FOUND 404
+#define BAD_REQUEST 400
+#define FORBIDDEN 403
+#define SERVER_ERROR 500
+
+#define BASE 16
 
 enum http_method
 {
     GET,
     HEAD,
-    POST
+    POST,
+    UNSUPPORTED
 };
 
 struct thread_state
@@ -61,16 +84,22 @@ struct thread_state
     char *version;
 };
 
-void  *parse_request(void *data);
-size_t read_until(int fd, char *buffer, size_t len, const char *delimiter, int *err);
-int    parse_request_headers(struct thread_state *data);
-int    parse_request_line(struct thread_state *data);
-void   cleanup_headers(struct thread_state *data);
-void   cleanup_header(char *header);
-int    parse_header(struct thread_state *data, char **buffer, bool *breaks, bool *continues);
-void   parse_path_arguments(const char *start_resource_string, char *end_resource_string);
-void  *http_respond(struct thread_state *data);
-// int    handle_get_request(int fd, const char *resource);
-// int    handle_head_request(int fd, const char *resource);
+void       *parse_request(void *data);
+size_t      read_until(int fd, char *buffer, size_t len, const char *delimiter, int *err);
+int         parse_request_headers(struct thread_state *data);
+int         parse_request_line(struct thread_state *data);
+void        cleanup_headers(struct thread_state *data);
+void        cleanup_header(char *header);
+int         parse_header(struct thread_state *data, char **buffer, bool *breaks, bool *continues);
+void        parse_path_arguments(const char *start_resource_string, char *end_resource_string);
+void       *http_respond(struct thread_state *data);
+void        handle_get_request(int client_fd, char *resource_path);
+void        handle_head_request(int client_fd, char *resource_path);
+void        handle_post_request(int client_fd, struct thread_state *state);
+int         construct_and_validate_path(char *resource_path, char *file_path, size_t file_path_size, struct stat *path_stat);
+char        hex_char_to_char(const char *c);
+void        construct_http_header(char *header, size_t header_size, int status_code, const char *mime_type, size_t content_length);
+const char *get_mime_type(const char *filepath);
+void        parse_url_encoding(char *resource_string);
 
 #endif    // HTTP_H

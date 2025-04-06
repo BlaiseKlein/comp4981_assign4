@@ -1,12 +1,8 @@
 //
 // Created by blaise-klein on 1/9/25.
 //
-
+//gcc -shared -fPIC -o http.so src/http.c -Iinclude -lgdbm_compat -lgdbm
 #include "http.h"
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <unistd.h>
 
 void *parse_request(void *context_data)
 {
@@ -17,6 +13,8 @@ void *parse_request(void *context_data)
     ssize_t              result              = 0;
     struct thread_state *data                = (struct thread_state *)context_data;
     data->request_line_string                = (char *)malloc((MAXLINELENGTH) * sizeof(char));
+    printf("[parse_request DEBUG] Start\n");
+
     if(data->request_line_string == NULL)
     {
         return 0;
@@ -25,14 +23,14 @@ void *parse_request(void *context_data)
     result = (ssize_t)read_until(data->client_fd, data->request_line_string, MAXLINELENGTH * sizeof(char), "\r\n", &err);
     if(result < 0)
     {
-        fprintf(stderr, "[CHILD] Failed to read request line\n");
+        fprintf(stderr, "[parse_request DEBUG] Failed to read request line\n");
         free(data->request_line_string);
         return NULL;
     }
 
     data->request_line_string[result] = '\0';
-    fprintf(stderr, "[CHILD] Raw request line: '%s'\n", data->request_line_string);
-    // 💡 Gracefully ignore empty connections
+    fprintf(stderr, "[parse_request DEBUG] Raw request line: '%s'\n", data->request_line_string);
+    // Gracefully ignore empty connections
     if(strlen(data->request_line_string) == 0)
     {
         // No request came in — maybe speculative or keep-alive socket
@@ -66,6 +64,8 @@ size_t read_until(int fd, char *buffer, size_t len, const char *delimiter, int *
 {
     ssize_t buffer_end = 0;
     char   *message    = (char *)malloc(len);
+    printf("[read_until DEBUG] Start\n");
+
     if(message == NULL)
     {
         *err = -1;
@@ -104,6 +104,7 @@ void parse_path_arguments(const char *start_resource_string, char *end_resource_
 {
     const char unix_slash      = '/';
     const char mark_start_args = '?';
+    printf("[parse_path_arguments DEBUG] Start\n");
 
     for(; start_resource_string != end_resource_string; end_resource_string--)
     {
@@ -131,6 +132,8 @@ int parse_request_line(struct thread_state *data)
     method  = strtok_r(data->request_line_string, " ", &rest);
     path    = strtok_r(NULL, " ", &rest);
     version = strtok_r(NULL, " ", &rest);
+    printf("[parse_request_line DEBUG] Start\n");
+
     if(method == NULL)
     {
         return -1;
@@ -146,6 +149,9 @@ int parse_request_line(struct thread_state *data)
     else if(strcmp(method, "POST") == 0)
     {
         data->method = POST;
+    } else
+    {
+        data->method = UNSUPPORTED;
     }
 
     data->resource_string = (char *)malloc((MAXLINELENGTH) * sizeof(char));
@@ -156,6 +162,10 @@ int parse_request_line(struct thread_state *data)
     end_resource_string = version;
     end_resource_string--;
     start_resource_string = path;
+    if (path == NULL || version == NULL) {
+        return -1;
+    }
+
     parse_path_arguments(start_resource_string, end_resource_string);
     memcpy(data->resource_string, path, (size_t)(version - path + 1));
 
@@ -176,6 +186,8 @@ int parse_header(struct thread_state *data, char **buffer, bool *breaks, bool *c
     char       *info;
     const char *colon_place = NULL;
     info                    = (char *)malloc(MAXLINELENGTH);
+    printf("[parse_header DEBUG] Start\n");
+
     if(info == NULL)
     {
         return -1;
@@ -370,6 +382,8 @@ int parse_request_headers(struct thread_state *data)
 {
     char *buffer = (char *)malloc(MAXLINELENGTH);
     char *start  = buffer;
+    printf("[parse_request_headers DEBUG] Start\n");
+
     if(buffer == NULL)
     {
         return -1;
@@ -417,6 +431,8 @@ int parse_request_headers(struct thread_state *data)
 
 void cleanup_headers(struct thread_state *data)
 {
+    printf("[cleanup_headers DEBUG] Start\n");
+
     if(data != NULL)
     {
         cleanup_header(data->date_header);
@@ -450,8 +466,404 @@ void cleanup_headers(struct thread_state *data)
 
 void cleanup_header(char *header)
 {
+    printf("[cleanup_header DEBUG] Start\n");
+
     if(header != NULL)
     {
         free(header);
     }
+}
+
+void *http_respond(struct thread_state *ts)
+{
+    printf("[http_respond DEBUG] Start\n");
+
+    if(!ts || !ts->resource_string)
+    {
+        const char *resp = "HTTP/1.0 400 Bad Request\r\n\r\nMissing or malformed request\n";
+        write(ts->client_fd, resp, strlen(resp));
+        return NULL;
+    }
+    const char *msg;
+    // printf("[DEBUG] content_length_header: %s\n", ts->content_length_header);
+
+    printf("[http_request DEBUG] Handling request: %s (method %d)\n", ts->resource_string, ts->method);
+
+    if(ts->method == GET)
+    {
+        handle_get_request(ts->client_fd, ts->resource_string);
+    }
+    else if(ts->method == HEAD)
+    {
+        handle_head_request(ts->client_fd, ts->resource_string);
+    }
+    else if(ts->method == POST)
+    {
+        handle_post_request(ts->client_fd, ts);
+    }
+    else
+    {
+        const char *resp = "HTTP/1.0 405 Method Not Allowed\r\n\r\n";
+        write(ts->client_fd, resp, strlen(resp));
+        shutdown(ts->client_fd, SHUT_WR);
+
+    }
+    return NULL;
+}
+
+const char *get_mime_type(const char *filepath)
+{
+    printf("[get_mime_type DEBUG] Start\n");
+
+    // printf("inside mime_type %s\n", filepath);
+    if(strstr(filepath, ".html"))
+    {
+        return "text/html";
+    }
+    if(strstr(filepath, ".css"))
+    {
+        return "text/css";
+    }
+    if(strstr(filepath, ".js"))
+    {
+        return "application/javascript";
+    }
+    if(strstr(filepath, ".jpeg") || strstr(filepath, ".jpg"))
+    {
+        return "image/jpeg";
+    }
+    if(strstr(filepath, ".png"))
+    {
+        return "image/png";
+    }
+    if(strstr(filepath, ".gif"))
+    {
+        return "image/gif";
+    }
+    if(strstr(filepath, ".swf"))
+    {
+        return "application/x-shockwave-flash";
+    }
+    return "application/octet-stream";
+}
+
+void handle_get_request(int client_fd, char *resource_path)
+{
+    char        file_path[BUFFER_SIZE];
+    char        header[BUFFER_SIZE];
+    char        file_buffer[BUFFER_SIZE];
+    struct stat path_stat;
+    int         filefd;
+    ssize_t     bytes_read;
+    const char *mime_type;
+
+    int status_code = construct_and_validate_path(resource_path, file_path, sizeof(file_path), &path_stat);
+    printf("[handle_get_request DEBUG] Start\n");
+
+    if(status_code != OK)
+    {
+        // printf("%d\n", status_code);
+        construct_http_header(header, sizeof(header), status_code, "text/plain", 0);
+        write(client_fd, header, strlen(header));
+        return;
+    }
+
+    mime_type = get_mime_type(file_path);
+
+    // Open file for reading
+    filefd = open(file_path, O_RDONLY | O_CLOEXEC);
+    if(filefd < 0)
+    {
+        construct_http_header(header, sizeof(header), SERVER_ERROR, "text/plain", 0);
+        write(client_fd, header, strlen(header));
+        return;
+    }
+
+    construct_http_header(header, sizeof(header), OK, mime_type, (size_t)path_stat.st_size);
+    // printf("header: %s\n", header);
+    write(client_fd, header, strlen(header));
+
+    // Send file content
+    while((bytes_read = read(filefd, file_buffer, sizeof(file_buffer))) > 0)
+    {
+        write(client_fd, file_buffer, (size_t)bytes_read);
+    }
+
+        shutdown(client_fd, SHUT_WR);
+}
+
+void handle_head_request(int client_fd, char *resource_path)
+{
+    char        file_path[BUFFER_SIZE];
+    char        header[BUFFER_SIZE];
+    struct stat path_stat;
+    const char *mime_type;
+
+    int status_code = construct_and_validate_path(resource_path, file_path, sizeof(file_path), &path_stat);
+    printf("[handle_head_request DEBUG] Start\n");
+
+    if(status_code != OK)
+    {
+        construct_http_header(header, sizeof(header), status_code, "text/plain", 0);
+        write(client_fd, header, strlen(header));
+        return;
+    }
+
+    mime_type = get_mime_type(file_path);
+
+    // Construct and send headers only
+    construct_http_header(header, sizeof(header), OK, mime_type, (size_t)path_stat.st_size);
+    write(client_fd, header, strlen(header));
+}
+
+void handle_post_request(int client_fd, struct thread_state *state)
+{
+    printf("[handle_post_request DEBUG] Start\n");
+
+    if(!state->content_length_header)
+    {
+        const char *resp = "HTTP/1.0 411 Length Required\r\n\r\n";
+        write(client_fd, resp, strlen(resp));
+        //        shutdown(client_fd, SHUT_WR);
+        return;
+    }
+
+    size_t content_length = (size_t)atoi(state->content_length_header);
+    if(content_length <= 0 || content_length > 4096)
+    {
+        const char *resp = "HTTP/1.0 400 Bad Request\r\n\r\n";
+        write(client_fd, resp, strlen(resp));
+        //  printf("[DEBUG] Invalid Content-Length: %zu\n", content_length);
+        //        shutdown(client_fd, SHUT_WR);
+        return;
+    }
+
+    char *body = malloc(content_length);
+    if(!body)
+    {
+        const char *resp = "HTTP/1.0 500 Internal Server Error\r\n\r\n";
+        write(client_fd, resp, strlen(resp));
+        perror("[DEBUG] malloc failed for body");
+        //        shutdown(client_fd, SHUT_WR);
+        return;
+    }
+
+    ssize_t total_read = 0;
+    while(total_read < (ssize_t)content_length)
+    {
+        ssize_t n = read(client_fd, body + total_read, content_length - total_read);
+        if(n <= 0)
+        {
+            perror("[DEBUG] Failed to read full POST body");
+            const char *resp = "HTTP/1.0 400 Bad Request\r\n\r\nIncomplete POST body.\n";
+            write(client_fd, resp, strlen(resp));
+            free(body);
+            //            shutdown(client_fd, SHUT_WR);
+            return;
+        }
+        total_read += n;
+    }
+
+    // printf("[DEBUG] Received body (%zd bytes): '%.*s'\n", total_read, (int)total_read, body);
+
+    DBM *db = dbm_open("postdata", O_RDWR | O_CREAT, 0644);
+    if(!db)
+    {
+        perror("dbm_open");
+        const char *resp = "HTTP/1.0 500 Internal Server Error\r\n\r\n";
+        write(client_fd, resp, strlen(resp));
+        free(body);
+        //        shutdown(client_fd, SHUT_WR);
+        return;
+    }
+
+    // Create a timestamp key (heap allocated)
+    char timestamp_buf[64];
+    snprintf(timestamp_buf, sizeof(timestamp_buf), "%ld", time(NULL));
+
+    datum key;
+    key.dsize = (int)(strlen(timestamp_buf) + 1);    // include null terminator
+    key.dptr  = malloc(key.dsize);
+    if(!key.dptr)
+    {
+        const char *resp = "HTTP/1.0 500 Internal Server Error\r\n\r\n";
+        write(client_fd, resp, strlen(resp));
+        perror("[DEBUG] malloc failed for key.dptr");
+        dbm_close(db);
+        free(body);
+        //        shutdown(client_fd, SHUT_WR);
+        return;
+    }
+    memcpy(key.dptr, timestamp_buf, key.dsize);
+
+    datum value;
+    value.dsize = (int)total_read;
+    value.dptr  = malloc(value.dsize);
+    if(!value.dptr)
+    {
+        const char *resp = "HTTP/1.0 500 Internal Server Error\r\n\r\n";
+        write(client_fd, resp, strlen(resp));
+        perror("[DEBUG] malloc failed for value.dptr");
+        dbm_close(db);
+        free(body);
+        free(key.dptr);
+        //        shutdown(client_fd, SHUT_WR);
+        return;
+    }
+
+    memcpy(value.dptr, body, value.dsize);
+    free(body);
+
+    //    printf("[DEBUG] key='%s', key.dsize=%d | value.dsize=%d\n", key.dptr, key.dsize, value.dsize);
+
+    if(key.dsize == 0 || value.dsize == 0)
+    {
+        const char *resp = "HTTP/1.0 400 Bad Request\r\n\r\nEmpty key or value not allowed.\n";
+        write(client_fd, resp, strlen(resp));
+        //  fprintf(stderr, "[DEBUG] Refusing to store empty key or value\n");
+        dbm_close(db);
+        free(value.dptr);
+        free(key.dptr);
+        //        shutdown(client_fd, SHUT_WR);
+        return;
+    }
+
+    // printf("[DEBUG] dbm_store key='%.*s' (%d), value='%.*s' (%d)\n",
+    //           key.dsize, key.dptr, key.dsize,
+    //           value.dsize, value.dptr, value.dsize);
+
+    if(dbm_store(db, key, value, DBM_REPLACE) != 0)
+    {
+        const char *resp = "HTTP/1.0 500 DB Store Failed\r\n\r\n";
+        write(client_fd, resp, strlen(resp));
+        perror("[DEBUG] dbm_store failed");
+    }
+    else
+    {
+        char header[BUFFER_SIZE];
+        construct_http_header(header, sizeof(header), OK, "text/plain", strlen("Data stored successfully.\n"));
+        write(client_fd, header, strlen(header));
+        write(client_fd, "Data stored successfully.\n", strlen("Data stored successfully.\n"));
+        // shutdown(client_fd, SHUT_WR);
+
+        // printf("[POST] Stored key: '%s' (%d) | value: '%.*s' (%d)\n",
+        //               key.dptr, key.dsize, value.dsize, value.dptr, value.dsize);
+    }
+
+    dbm_close(db);
+    free(value.dptr);
+    free(key.dptr);
+    //    shutdown(client_fd, SHUT_WR);
+}
+
+int construct_and_validate_path(char *resource_path, char *file_path, size_t file_path_size, struct stat *path_stat)
+{
+    printf("[construct_and_validate_path DEBUG] Start\n");
+
+    parse_url_encoding(resource_path);
+
+    // Construct the file path
+    snprintf(file_path, file_path_size, "%s%s", SERVER_ROOT, resource_path);
+    // printf("construct and validate %s\n", file_path);
+    // Default to index.html for directory-like paths
+    if(resource_path[strlen(resource_path) - 1] == '/')
+    {
+        strncat(file_path, "index.html", file_path_size - strlen(file_path) - 1);
+    }
+
+    // Prevent directory traversal attacks
+    if(strstr(resource_path, "/../"))
+    {
+        printf("directory traversal\n");
+        return FORBIDDEN;
+    }
+
+    // Check file existence
+    if(stat(file_path, path_stat) < 0)
+    {
+        if(errno == EACCES)
+        {
+            // printf("Permission denied for %s\n", file_path);
+            return FORBIDDEN;
+        }
+
+        {
+            // printf("File not found: %s\n", file_path);
+            return NOT_FOUND;
+        }
+    }
+
+    return OK;
+}
+
+void construct_http_header(char *header, size_t header_size, int status_code, const char *mime_type, size_t content_length)
+{
+    const char *status_text;
+    printf("[construct_http_header DEBUG] Start\n");
+
+    switch(status_code)
+    {
+        case OK:
+            status_text = "200 OK";
+            break;
+        case BAD_REQUEST:
+            status_text = "400 Bad Request";
+            break;
+        case FORBIDDEN:
+            status_text = "403 Forbidden";
+            break;
+        case NOT_FOUND:
+            status_text = "404 Not Found";
+            break;
+        default:
+            status_text = "500 Internal Server Error";
+            break;
+    }
+
+    snprintf(header,
+             header_size,
+             "HTTP/1.0 %s\r\n"
+             "Server: webserver-c\r\n"
+             "Content-Length: %zu\r\n"
+             "Content-Type: %s\r\n\r\n",
+             status_text,
+             content_length,
+             mime_type);
+}
+
+char hex_char_to_char(const char *c)
+{
+    const char temp[3] = {c[0], c[1], '\0'};    // Copy two characters and null-terminate
+    long       num     = strtol(temp, NULL, BASE);
+    printf("[hex_char_to_char DEBUG] Start\n");
+
+    return (char)num;
+}
+
+void parse_url_encoding(char *resource_string)
+{
+    size_t resource_string_size = strlen(resource_string);
+    char  *buffer               = (char *)malloc(resource_string_size + 1);
+    char  *start                = buffer;
+    printf("[parse_url_encoding DEBUG] Start\n");
+
+    for(size_t i = 0; i < resource_string_size; i++, buffer++)
+    {
+        if(resource_string[i] == '%' && i + 2 < resource_string_size)
+        {
+            *buffer = hex_char_to_char(&resource_string[i + 1]);
+            i += 2;    // Skip the two hex characters
+        }
+        else
+        {
+            *buffer = resource_string[i];
+        }
+    }
+    *buffer = '\0';    // Null-terminate the result
+
+    // Copy decoded result back to resource_string
+    strncpy(resource_string, start, resource_string_size);
+    resource_string[resource_string_size] = '\0';
+
+    free(start);
 }

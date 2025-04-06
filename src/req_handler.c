@@ -14,6 +14,8 @@
 
 int setup_children(struct context *ctx)
 {
+    printf("[setup_children DEBUG] Start\n");
+
     for(int i = 0; i < CHILD_COUNT; ++i)
     {
         fork_child(ctx, i);
@@ -23,12 +25,15 @@ int setup_children(struct context *ctx)
 
 _Noreturn void startup_child(struct context *ctx)
 {
-    ctx->lib_info.path = strdup("./libhandler.so");
+    printf("[startup_child DEBUG] Start\n");
+
+    ctx->lib_info.path = strdup("./http.so");
 
     while(1)
     {
         // 1. Receive file descriptor for new client
         int client_fd = recv_fd(ctx->network.domain_fd[1]);
+        printf("client fd: %d\n", client_fd);
         if(client_fd < 0)
         {
             perror("recv_fd failed");
@@ -53,5 +58,6 @@ _Noreturn void startup_child(struct context *ctx)
         }
         // 4. Notify parent that this fd can be used again
         send_fd(ctx->network.domain_fd[1], client_fd);
+        close(client_fd);
     }
 }
