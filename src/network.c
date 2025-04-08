@@ -433,7 +433,7 @@ _Noreturn int await_client_connection(struct context *ctx)
                     ctx->network.poll_fds[i].revents = 0;
                     break;
                 }
-                else
+
                 {
                     fprintf(stderr, "[await_client_connection DEBUG] Ignoring early POLLHUP on fd=%d\n", ctx->network.poll_fds[i].fd);
                     ctx->network.poll_fds[i].revents = 0;
