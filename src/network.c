@@ -467,8 +467,10 @@ struct pollfd *initialize_pollfds(int sockfd, int domain_fd, int **client_socket
 
     fds[0].fd     = sockfd;
     fds[0].events = POLLIN;
+    fds[0].revents = 0;
     fds[1].fd     = domain_fd;
     fds[1].events = POLLIN;
+    fds[1].revents = 0;
 
     return fds;
 }
