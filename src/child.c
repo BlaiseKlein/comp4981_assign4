@@ -63,7 +63,7 @@ void check_library(struct context *ctx)
 
         if(!ctx->lib_info.handle)
         {
-            fprintf(stderr, "Failed to load library: %s\n", dlerror());
+            // fprintf(stderr, "Failed to load library: %s\n", dlerror());
             return;
         }
 
@@ -130,7 +130,7 @@ int handle_request(struct context *ctx, int client_fd)
     // Parse request dynamically
     if(parse_request_union.func_ptr(&ts) == NULL)
     {
-        fprintf(stderr, "[handle request DEBUG] parse_request failed\n");
+      //  fprintf(stderr, "[handle request DEBUG] parse_request failed\n");
         return 0;
     }
 

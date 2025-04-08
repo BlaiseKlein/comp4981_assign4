@@ -33,7 +33,7 @@ _Noreturn void startup_child(struct context *ctx)
     {
         // 1. Receive file descriptor for new client
         int client_fd = recv_fd(ctx->network.domain_fd[1]);
-        printf("client fd: %d\n", client_fd);
+        //      printf("client fd: %d\n", client_fd);
         if(client_fd < 0)
         {
             perror("recv_fd failed");
