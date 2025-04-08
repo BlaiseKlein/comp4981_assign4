@@ -130,7 +130,7 @@ int handle_request(struct context *ctx, int client_fd)
     // Parse request dynamically
     if(parse_request_union.func_ptr(&ts) == NULL)
     {
-      //  fprintf(stderr, "[handle request DEBUG] parse_request failed\n");
+        //  fprintf(stderr, "[handle request DEBUG] parse_request failed\n");
         return 0;
     }
 

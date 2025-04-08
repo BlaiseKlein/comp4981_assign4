@@ -430,9 +430,9 @@ _Noreturn int await_client_connection(struct context *ctx)
                     // fd cleanup
                     ctx->network.poll_fds[i].events = 0;
                     fprintf(stderr, "[await_client_connection DEBUG] Considering removal: fd=%d, revents=0x%x\n", ctx->network.poll_fds[i].fd, (unsigned int)ctx->network.poll_fds[i].revents);
-                    ctx->network.poll_fds[i].revents = 0;    // 👈 Add this before or after calling remove_poll_client
 
                     remove_poll_client((int)i, &ctx->network.poll_clients, &max_clients, &ctx->network.poll_fds);
+                    ctx->network.poll_fds[i].revents = 0;    // 👈 Add this before or after calling remove_poll_client
                     break;
                 }
             if(ctx->network.poll_fds[i].fd != -1)
