@@ -2,6 +2,7 @@
 // Created by blaise-klein on 1/9/25.
 //
 //gcc -shared -fPIC -o http.so src/http.c -Iinclude -lgdbm_compat -lgdbm
+//gcc -shared -fPIC -o http.so src/http.c -Iinclude
 #include "http.h"
 
 void *parse_request(void *context_data)
@@ -13,7 +14,7 @@ void *parse_request(void *context_data)
     ssize_t              result              = 0;
     struct thread_state *data                = (struct thread_state *)context_data;
     data->request_line_string                = (char *)malloc((MAXLINELENGTH) * sizeof(char));
-    printf("HI FROM LIBRARY\n");
+//    printf("HI FROM LIBRARY\n");
 
     if(data->request_line_string == NULL)
     {

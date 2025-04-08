@@ -339,7 +339,7 @@ _Noreturn int await_client_connection(struct context *ctx)
 {
     nfds_t max_clients    = 0;
     ctx->network.poll_fds = initialize_pollfds(ctx->network.receive_fd, ctx->network.domain_fd[0], &ctx->network.poll_clients);
-    printf("[await_client_connection DEBUG] Start\n");
+    //    printf("[await_client_connection DEBUG] Start\n");
 
     while(1)
     {

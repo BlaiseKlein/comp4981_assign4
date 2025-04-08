@@ -46,8 +46,7 @@ void check_library(struct context *ctx)
 
     if(needs_reload)
     {
-        printf("[check_library DEBUG] Reloading library: %s\n", ctx->lib_info.path);
-
+        //        printf("[check_library DEBUG] Reloading library: %s\n", ctx->lib_info.path);
         if(ctx->lib_info.handle)
         {
             // printf("[DEBUG] dlclose() on handle %p\n", ctx->lib_info.handle);
