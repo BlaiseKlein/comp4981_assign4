@@ -14,7 +14,7 @@
 
 int setup_children(struct context *ctx)
 {
-    printf("[setup_children DEBUG] Start\n");
+    // printf("[setup_children DEBUG] Start\n");
 
     for(int i = 0; i < CHILD_COUNT; ++i)
     {
@@ -25,7 +25,7 @@ int setup_children(struct context *ctx)
 
 _Noreturn void startup_child(struct context *ctx)
 {
-    printf("[startup_child DEBUG] Start\n");
+    // printf("[startup_child DEBUG] Start\n");
 
     ctx->lib_info.path = strdup("./http.so");
 

@@ -12,7 +12,7 @@ void check_library(struct context *ctx)
 {
     struct stat file_stat;
     int         needs_reload = 0;
-    printf("[check_library] start\n");
+    // printf("[check_library] start\n");
 
     if(!ctx || !ctx->lib_info.path)
     {
@@ -33,14 +33,14 @@ void check_library(struct context *ctx)
     {
         if(file_stat.st_mtime <= ctx->lib_info.last_mod)
         {
-            printf("[check_library DEBUG] Library has not been modified since last load.\n");
+            // printf("[check_library DEBUG] Library has not been modified since last load.\n");
             return;
         }
         needs_reload = 1;
     }
     else
     {
-        printf("[check_library DEBUG] No handle yet. Loading library.\n");
+        // printf("[check_library DEBUG] No handle yet. Loading library.\n");
         needs_reload = 1;
     }
 
@@ -72,7 +72,7 @@ void check_library(struct context *ctx)
             ctx->lib_info.last_mod = file_stat.st_mtime;
         }
 
-        printf("[check_library DEBUG] Library %s reloaded successfully.\n", ctx->lib_info.path);
+        // printf("[check_library DEBUG] Library %s reloaded successfully.\n", ctx->lib_info.path);
     }
 }
 
@@ -98,7 +98,7 @@ int handle_request(struct context *ctx, int client_fd)
 
     struct thread_state ts;
     memset(&ts, 0, sizeof(struct thread_state));    // ✅ Clear all fields to 0
-    printf("[handle request DEBUG] start\n");
+    // printf("[handle request DEBUG] start\n");
 
     ts.client_fd           = client_fd;
     ts.request_line_string = NULL;

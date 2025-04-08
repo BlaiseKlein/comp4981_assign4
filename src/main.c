@@ -17,7 +17,6 @@ int main(int argc, char **argv)
     ctx->lib_info.path     = strdup("./http.so");
     ctx->lib_info.handle   = NULL;
     ctx->lib_info.last_mod = 0;
-    printf("[mainDEBUG] Start\n");
 
     if(!ctx->lib_info.path)
     {

@@ -38,7 +38,7 @@ void send_fd(int socket, int fd)
     cmsg->cmsg_type    = SCM_RIGHTS;
     cmsg->cmsg_len     = CMSG_LEN(sizeof(int));
     memcpy(CMSG_DATA(cmsg), &fd, sizeof(int));
-    printf("[send_fd DEBUG] Start\n");
+    // printf("[send_fd DEBUG] Start\n");
 
     if(sendmsg(socket, &msg, 0) < 0)
     {
@@ -50,7 +50,7 @@ void send_fd(int socket, int fd)
 ssize_t read_fully(int sockfd, void *buf, ssize_t len, int *err)
 {
     ssize_t total_read = 0;
-    printf("[read_fully DEBUG] Start\n");
+    // printf("[read_fully DEBUG] Start\n");
 
     while(total_read < len)
     {
@@ -73,7 +73,7 @@ ssize_t read_fully(int sockfd, void *buf, ssize_t len, int *err)
 ssize_t write_fully(int sockfd, const void *buf, ssize_t len, int *err)
 {
     ssize_t total_written = 0;
-    printf("[write_fully DEBUG] Start\n");
+    // printf("[write_fully DEBUG] Start\n");
 
     while(total_written < len)
     {
@@ -100,7 +100,7 @@ in_port_t parse_in_port_t(const char *str, int *err)
     *err = 0;
 
     parsed_value = strtol(str, &endptr, BASE_TEN);
-    printf("[parse_in_port_t DEBUG] Start\n");
+    // printf("[parse_in_port_t DEBUG] Start\n");
 
     if(errno != 0)
     {
@@ -127,7 +127,7 @@ in_port_t parse_in_port_t(const char *str, int *err)
 void convert_address(const char *address, struct sockaddr_storage *addr, socklen_t *addr_len, int *err)
 {
     memset(addr, 0, sizeof(*addr));
-    printf("[convert_address DEBUG] Start\n");
+    // printf("[convert_address DEBUG] Start\n");
 
     if(inet_pton(AF_INET, address, &(((struct sockaddr_in *)addr)->sin_addr)) == 1)
     {
@@ -150,7 +150,7 @@ int socket_create(int domain, int type, int protocol, int *err)
     int sockfd;
 
     sockfd = socket(domain, type, protocol);
-    printf("[socket_create DEBUG] Start\n");
+    // printf("[socket_create DEBUG] Start\n");
 
     if(sockfd == -1)
     {
@@ -168,7 +168,7 @@ void socket_bind(int sockfd, struct sockaddr_storage *addr, in_port_t port, int 
     in_port_t net_port;
 
     net_port = htons(port);
-    printf("[socket_bind DEBUG] Start\n");
+    // printf("[socket_bind DEBUG] Start\n");
 
     if(addr->ss_family == AF_INET)
     {
@@ -233,7 +233,7 @@ void socket_bind(int sockfd, struct sockaddr_storage *addr, in_port_t port, int 
 
 void socket_close(int sockfd)
 {
-    printf("[socket_close DEBUG] Start\n");
+    // printf("[socket_close DEBUG] Start\n");
 
     if(close(sockfd) == -1)
     {
@@ -244,7 +244,7 @@ void socket_close(int sockfd)
 
 void get_address_to_server(struct sockaddr_storage *addr, in_port_t port, int *err)
 {
-    printf("[get_address_to_server DEBUG] Start\n");
+    // printf("[get_address_to_server DEBUG] Start\n");
 
     if(addr->ss_family == AF_INET)
     {
@@ -273,7 +273,7 @@ int setup_socket(struct context *ctx)
     int sockfd;
     // int listen_return;
     ctx->network.receive_addr = (struct sockaddr_storage *)malloc(sizeof(struct sockaddr_storage));
-    printf("[setup_socket DEBUG] Start\n");
+    // printf("[setup_socket DEBUG] Start\n");
 
     if(ctx->network.receive_addr == NULL)
     {
@@ -323,7 +323,7 @@ int setup_socket(struct context *ctx)
 
 int setup_domain_socket(struct context *ctx)
 {
-    printf("[setup_domain_socket DEBUG] Start\n");
+    // printf("[setup_domain_socket DEBUG] Start\n");
 
     if(socketpair(AF_UNIX, SOCK_STREAM, 0, ctx->network.domain_fd) == -1)
     {
@@ -342,14 +342,13 @@ _Noreturn int await_client_connection(struct context *ctx)
     nfds_t max_clients = 0;
     // Load domain socket into poll fds
     ctx->network.poll_fds = initialize_pollfds(ctx->network.receive_fd, ctx->network.domain_fd[0], &ctx->network.poll_clients);
-    printf("[await_client_connection DEBUG] Start\n");
+    // printf("[await_client_connection DEBUG] Start\n");
 
     while(1)
     {
         int activity;
 
         activity = poll(ctx->network.poll_fds, max_clients + REQUIRED_SOCKET_COUNT, -1);
-        printf("[await_client_connection DEBUG] Inside while loop\n");
 
         if(activity < 0)
         {
@@ -430,7 +429,7 @@ _Noreturn int await_client_connection(struct context *ctx)
                 {
                     // fd cleanup
                     ctx->network.poll_fds[i].events = 0;
-                    fprintf(stderr, "[await_client_connection DEBUG] Considering removal: fd=%d, revents=0x%x\n", ctx->network.poll_fds[i].fd, (unsigned int)ctx->network.poll_fds[i].revents);
+                    // fprintf(stderr, "[await_client_connection DEBUG] Considering removal: fd=%d, revents=0x%x\n", ctx->network.poll_fds[i].fd, (unsigned int)ctx->network.poll_fds[i].revents);
                     ctx->network.poll_fds[i].revents = 0;    // 👈 Add this before or after calling remove_poll_client
 
                     remove_poll_client((int)i, &ctx->network.poll_clients, &max_clients, &ctx->network.poll_fds);
@@ -458,7 +457,7 @@ struct pollfd *initialize_pollfds(int sockfd, int domain_fd, int **client_socket
     *client_sockets = NULL;
 
     fds = (struct pollfd *)malloc((REQUIRED_SOCKET_COUNT) * sizeof(struct pollfd));
-    printf("[initialize_pollfds DEBUG] Start\n");
+    // printf("[initialize_pollfds DEBUG] Start\n");
 
     if(fds == NULL)
     {
@@ -476,7 +475,7 @@ struct pollfd *initialize_pollfds(int sockfd, int domain_fd, int **client_socket
 
 void handle_new_connection(int sockfd, int **client_sockets, nfds_t *max_clients, struct pollfd **fds)
 {
-    printf("[handle_new_connection DEBUG] Start\n");
+    // printf("[handle_new_connection DEBUG] Start\n");
 
     if((*fds)[0].revents & POLLIN && sockfd == (*fds)[0].fd)
     {
@@ -487,7 +486,7 @@ void handle_new_connection(int sockfd, int **client_sockets, nfds_t *max_clients
 
         addrlen    = sizeof(addr);
         new_socket = accept((*fds)[0].fd, (struct sockaddr *)&addr, &addrlen);
-        fprintf(stderr, "[handle_new_connection DEBUG] accepted new socket: %d\n", new_socket);
+        // fprintf(stderr, "[handle_new_connection DEBUG] accepted new socket: %d\n", new_socket);
         if(*max_clients == 1)
         {
             fprintf(stderr, "[DEBUG] First client, sleeping 1s to observe\n");
@@ -545,8 +544,8 @@ void handle_new_connection(int sockfd, int **client_sockets, nfds_t *max_clients
 void remove_poll_client(int poll_index, int **client_sockets, nfds_t *max_clients, struct pollfd **fds)
 {
     int client_index = poll_index - REQUIRED_SOCKET_COUNT;
-    printf("[remove_poll_client DEBUG] Start\n");
-    printf("[remove_poll_client DEBUG] Closing socket: %d\n", (*fds)[poll_index].fd);
+    // printf("[remove_poll_client DEBUG] Start\n");
+    // printf("[remove_poll_client DEBUG] Closing socket: %d\n", (*fds)[poll_index].fd);
 
     if((nfds_t)client_index >= *max_clients || poll_index < REQUIRED_SOCKET_COUNT)
     {
@@ -650,7 +649,7 @@ int recv_fd(int socket)
     msg.msg_iovlen     = 1;
     msg.msg_control    = control;
     msg.msg_controllen = sizeof(control);
-    printf("[recv_fd DEBUG] Start\n");
+    // printf("[recv_fd DEBUG] Start\n");
 
     if(recvmsg(socket, &msg, 0) < 0)
     {

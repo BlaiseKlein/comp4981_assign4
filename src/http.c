@@ -13,7 +13,7 @@ void *parse_request(void *context_data)
     ssize_t              result              = 0;
     struct thread_state *data                = (struct thread_state *)context_data;
     data->request_line_string                = (char *)malloc((MAXLINELENGTH) * sizeof(char));
-    printf("[parse_request DEBUG] Start\n");
+    printf("HI FROM LIBRARY\n");
 
     if(data->request_line_string == NULL)
     {
@@ -29,7 +29,7 @@ void *parse_request(void *context_data)
     }
 
     data->request_line_string[result] = '\0';
-    fprintf(stderr, "[parse_request DEBUG] Raw request line: '%s'\n", data->request_line_string);
+//    fprintf(stderr, "[parse_request DEBUG] Raw request line: '%s'\n", data->request_line_string);
     // Gracefully ignore empty connections
     if(strlen(data->request_line_string) == 0)
     {
@@ -64,7 +64,7 @@ size_t read_until(int fd, char *buffer, size_t len, const char *delimiter, int *
 {
     ssize_t buffer_end = 0;
     char   *message    = (char *)malloc(len);
-    printf("[read_until DEBUG] Start\n");
+//    printf("[read_until DEBUG] Start\n");
 
     if(message == NULL)
     {
@@ -104,7 +104,7 @@ void parse_path_arguments(const char *start_resource_string, char *end_resource_
 {
     const char unix_slash      = '/';
     const char mark_start_args = '?';
-    printf("[parse_path_arguments DEBUG] Start\n");
+//    printf("[parse_path_arguments DEBUG] Start\n");
 
     for(; start_resource_string != end_resource_string; end_resource_string--)
     {
@@ -132,7 +132,7 @@ int parse_request_line(struct thread_state *data)
     method  = strtok_r(data->request_line_string, " ", &rest);
     path    = strtok_r(NULL, " ", &rest);
     version = strtok_r(NULL, " ", &rest);
-    printf("[parse_request_line DEBUG] Start\n");
+//    printf("[parse_request_line DEBUG] Start\n");
 
     if(method == NULL)
     {
@@ -186,7 +186,7 @@ int parse_header(struct thread_state *data, char **buffer, bool *breaks, bool *c
     char       *info;
     const char *colon_place = NULL;
     info                    = (char *)malloc(MAXLINELENGTH);
-    printf("[parse_header DEBUG] Start\n");
+//    printf("[parse_header DEBUG] Start\n");
 
     if(info == NULL)
     {
@@ -382,7 +382,7 @@ int parse_request_headers(struct thread_state *data)
 {
     char *buffer = (char *)malloc(MAXLINELENGTH);
     char *start  = buffer;
-    printf("[parse_request_headers DEBUG] Start\n");
+//    printf("[parse_request_headers DEBUG] Start\n");
 
     if(buffer == NULL)
     {
@@ -431,7 +431,7 @@ int parse_request_headers(struct thread_state *data)
 
 void cleanup_headers(struct thread_state *data)
 {
-    printf("[cleanup_headers DEBUG] Start\n");
+//    printf("[cleanup_headers DEBUG] Start\n");
 
     if(data != NULL)
     {
@@ -466,7 +466,7 @@ void cleanup_headers(struct thread_state *data)
 
 void cleanup_header(char *header)
 {
-    printf("[cleanup_header DEBUG] Start\n");
+//    printf("[cleanup_header DEBUG] Start\n");
 
     if(header != NULL)
     {
@@ -476,7 +476,7 @@ void cleanup_header(char *header)
 
 void *http_respond(struct thread_state *ts)
 {
-    printf("[http_respond DEBUG] Start\n");
+//    printf("[http_respond DEBUG] Start\n");
 
     if(!ts || !ts->resource_string)
     {
@@ -487,7 +487,7 @@ void *http_respond(struct thread_state *ts)
     const char *msg;
     // printf("[DEBUG] content_length_header: %s\n", ts->content_length_header);
 
-    printf("[http_request DEBUG] Handling request: %s (method %d)\n", ts->resource_string, ts->method);
+//    printf("[http_request DEBUG] Handling request: %s (method %d)\n", ts->resource_string, ts->method);
 
     if(ts->method == GET)
     {
@@ -513,7 +513,7 @@ void *http_respond(struct thread_state *ts)
 
 const char *get_mime_type(const char *filepath)
 {
-    printf("[get_mime_type DEBUG] Start\n");
+//    printf("[get_mime_type DEBUG] Start\n");
 
     // printf("inside mime_type %s\n", filepath);
     if(strstr(filepath, ".html"))
@@ -558,7 +558,7 @@ void handle_get_request(int client_fd, char *resource_path)
     const char *mime_type;
 
     int status_code = construct_and_validate_path(resource_path, file_path, sizeof(file_path), &path_stat);
-    printf("[handle_get_request DEBUG] Start\n");
+//    printf("[handle_get_request DEBUG] Start\n");
 
     if(status_code != OK)
     {
@@ -600,7 +600,7 @@ void handle_head_request(int client_fd, char *resource_path)
     const char *mime_type;
 
     int status_code = construct_and_validate_path(resource_path, file_path, sizeof(file_path), &path_stat);
-    printf("[handle_head_request DEBUG] Start\n");
+//    printf("[handle_head_request DEBUG] Start\n");
 
     if(status_code != OK)
     {
@@ -618,7 +618,7 @@ void handle_head_request(int client_fd, char *resource_path)
 
 void handle_post_request(int client_fd, struct thread_state *state)
 {
-    printf("[handle_post_request DEBUG] Start\n");
+//    printf("[handle_post_request DEBUG] Start\n");
 
     if(!state->content_length_header)
     {
@@ -758,7 +758,7 @@ void handle_post_request(int client_fd, struct thread_state *state)
 
 int construct_and_validate_path(char *resource_path, char *file_path, size_t file_path_size, struct stat *path_stat)
 {
-    printf("[construct_and_validate_path DEBUG] Start\n");
+//    printf("[construct_and_validate_path DEBUG] Start\n");
 
     parse_url_encoding(resource_path);
 
@@ -774,7 +774,7 @@ int construct_and_validate_path(char *resource_path, char *file_path, size_t fil
     // Prevent directory traversal attacks
     if(strstr(resource_path, "/../"))
     {
-        printf("directory traversal\n");
+//        printf("directory traversal\n");
         return FORBIDDEN;
     }
 
@@ -799,7 +799,7 @@ int construct_and_validate_path(char *resource_path, char *file_path, size_t fil
 void construct_http_header(char *header, size_t header_size, int status_code, const char *mime_type, size_t content_length)
 {
     const char *status_text;
-    printf("[construct_http_header DEBUG] Start\n");
+//    printf("[construct_http_header DEBUG] Start\n");
 
     switch(status_code)
     {
@@ -835,7 +835,7 @@ char hex_char_to_char(const char *c)
 {
     const char temp[3] = {c[0], c[1], '\0'};    // Copy two characters and null-terminate
     long       num     = strtol(temp, NULL, BASE);
-    printf("[hex_char_to_char DEBUG] Start\n");
+//    printf("[hex_char_to_char DEBUG] Start\n");
 
     return (char)num;
 }
@@ -845,7 +845,7 @@ void parse_url_encoding(char *resource_string)
     size_t resource_string_size = strlen(resource_string);
     char  *buffer               = (char *)malloc(resource_string_size + 1);
     char  *start                = buffer;
-    printf("[parse_url_encoding DEBUG] Start\n");
+//    printf("[parse_url_encoding DEBUG] Start\n");
 
     for(size_t i = 0; i < resource_string_size; i++, buffer++)
     {

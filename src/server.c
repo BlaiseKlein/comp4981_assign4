@@ -113,7 +113,7 @@ void parse_arguments(int argc, char **argv, struct context *ctx)
 _Noreturn void *watch_children(void *arg)
 {
     struct context *ctx = (struct context *)arg;
-    printf("[watch_children DEBUG] Start\n");
+    // printf("[watch_children DEBUG] Start\n");
 
     while(1)
     {
@@ -143,7 +143,7 @@ _Noreturn void *watch_children(void *arg)
 int fork_child(struct context *ctx, int child_pid)
 {
     int pid = fork();
-    printf("[fork_child DEBUG] Start\n");
+    // printf("[fork_child DEBUG] Start\n");
 
     if(pid == -1)
     {
