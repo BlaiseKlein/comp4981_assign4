@@ -400,7 +400,7 @@ _Noreturn int await_client_connection(struct context *ctx)
                     ctx->network.poll_fds[i].events = POLLIN + POLLRDHUP + POLLHUP;
 #endif
 #ifdef __APPLE__
-                    ctx->network.poll_fds[i].events = POLLIN + POLL_HUP + POLLHUP;
+                    ctx->network.poll_fds[i].events = POLLIN | POLLHUP;
 #endif
                     close(new_fd);
                     break;
@@ -424,6 +424,7 @@ _Noreturn int await_client_connection(struct context *ctx)
             if(ctx->network.poll_fds[i].fd != -1 && (ctx->network.poll_fds[i].revents & POLLRDHUP))
 #endif
 #ifdef __APPLE__
+
                 if(ctx->network.poll_fds[i].fd != -1 && (ctx->network.poll_fds[i].revents & POLL_HUP))
 #endif
                 {
